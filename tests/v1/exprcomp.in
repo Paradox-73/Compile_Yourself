@@ -1,0 +1,35 @@
+# calculator program used as compiler input
+a = 1 + 2 * 3;
+b = (1 + 2) * 3;
+print a - b - 1;          # left grouping: (a - b) - 1
+c = -a * -b;
+d = - - 5 + x0;           # x0 is not defined yet
+x0 = 0;
+d = - - 5 + x0;
+e = a < b == 1;
+f = 2 * 3 < 7 == 1 < 2;
+print (a + 0) * 1 + 0 * (b - 0);
+print 1 * (c + 0) - 0;
+g = 65536 * 65536 + 2147483647 + 1;
+h = 0 - 2147483647 - 1;
+print h - 1;
+print -h;
+big = 123456 * 654321;
+print big < 0;
+i = ((((((((1+2)))))))) * (((3)));
+j = a * b * c * d * e * f * i;
+print j == j;
+k = 1 + ;                  # syntax error at the ';'
+l = (2 + 3;
+m 5;
+= 7;
+print 4 4;
+n = 3 $ 4;
+print (n);
+oops == 3;
+z = a+b*c-d*e+f-g*h+i-j;
+print z * 0 + q;
+y = -(-(-(a)));
+print y + -(-7);
+w = 10 - 2 - 3 - 4 + 1 * 2 * 3 - -1;
+print w

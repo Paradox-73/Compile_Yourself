@@ -49,7 +49,7 @@ def run_case(case, args, work):
     if case.get("seed") is not None:
         try:
             case["src"], case["input"], case["expected"] = v1gen.generate(case["seed"])
-        except v1ref.V1Error as e:
+        except (v1ref.V1Error, RuntimeError) as e:
             return dict(res, status="GEN-ERROR", detail=f"generator made a program v1ref rejects: {e}")
         (d / "prog.v1").write_bytes(case["src"])
         (d / "input").write_bytes(case["input"])

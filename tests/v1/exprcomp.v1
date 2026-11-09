@@ -1,0 +1,658 @@
+// A small compiler pass for a calculator language. Input statements:
+//     name = expr ;        print expr ;
+// expr has decimal numbers, names, unary -, * + - < == and parentheses
+// (tightest first: unary -, *, + and -, <, ==; binary ones group left).
+// '#' starts a comment to the end of the line.
+// For each statement it prints the parsed tree fully parenthesised, the
+// tree after constant folding, stack code for it with the stack depth,
+// and the value. Syntax errors skip to the next ';'.
+
+// tokens
+var maxtok;
+array tk[3000];     // kind
+array tv[3000];     // number value or name index
+array tl[3000];     // line
+array tc[3000];     // column
+var ntok;
+var tp;
+
+// names
+array npos[200];
+array nlen[200];
+array nval[200];
+array ndef[200];
+var nnames;
+array pool[4000];
+var poolsize;
+
+// tree nodes: kind 0 number, 1 name, 2 negate, 3 binary (val = token kind)
+array kind[1000];
+array val[1000];
+array lft[1000];
+array rgt[1000];
+var nnodes;
+
+var err;
+var undef;
+var ncode;
+
+array src[16000];
+var srclen;
+var sp;
+var line;
+var col;
+array p10[10];
+
+func initp10() {
+  var i;
+  p10[0] = 1;
+  i = 1;
+  while (i < 10) {
+    p10[i] = p10[i - 1] * 10;
+    i = i + 1;
+  }
+  return 0;
+}
+
+func printint(x) {
+  var i;
+  var d;
+  var started;
+  if (x < 0) { putc(45); } else { x = -x; }
+  started = 0;
+  i = 9;
+  while (i >= 0) {
+    d = 0;
+    while (x <= -p10[i]) {
+      x = x + p10[i];
+      d = d + 1;
+    }
+    if (d != 0) { started = 1; }
+    if (i == 0) { started = 1; }
+    if (started) { putc(48 + d); }
+    i = i - 1;
+  }
+  return 0;
+}
+
+func sp1() { putc(32); return 0; }
+func nl() { putc(10); return 0; }
+
+func word2(a, b) { putc(a); putc(b); return 0; }
+func word3(a, b, c) { putc(a); putc(b); putc(c); return 0; }
+func word4(a, b, c, d) { putc(a); putc(b); putc(c); putc(d); return 0; }
+func word5(a, b, c, d, e) { putc(a); putc(b); putc(c); putc(d); putc(e); return 0; }
+
+// ---------------------------------------------------------------- lexer
+
+func readall() {
+  var c;
+  srclen = 0;
+  c = getc();
+  while (c != -1) {
+    if (srclen < 16000) {
+      src[srclen] = c;
+      srclen = srclen + 1;
+    }
+    c = getc();
+  }
+  return 0;
+}
+
+func at(p) {
+  if (p < srclen) { return src[p]; }
+  return -1;
+}
+
+func isdigit(c) {
+  if (c >= 48) {
+    if (c <= 57) { return 1; }
+  }
+  return 0;
+}
+
+func isnamestart(c) {
+  if (c == 95) { return 1; }
+  if (c >= 97) {
+    if (c <= 122) { return 1; }
+  }
+  if (c >= 65) {
+    if (c <= 90) { return 1; }
+  }
+  return 0;
+}
+
+func isnamechar(c) {
+  if (isnamestart(c)) { return 1; }
+  return isdigit(c);
+}
+
+func bump() {
+  if (src[sp] == 10) {
+    line = line + 1;
+    col = 1;
+  } else {
+    col = col + 1;
+  }
+  sp = sp + 1;
+  return 0;
+}
+
+func addtok(k, v, l, c) {
+  if (ntok < maxtok) {
+    tk[ntok] = k;
+    tv[ntok] = v;
+    tl[ntok] = l;
+    tc[ntok] = c;
+    ntok = ntok + 1;
+  }
+  return 0;
+}
+
+// Returns the index of the name src[s..s+n), adding it when new.
+func intern(s, n) {
+  var i;
+  var k;
+  var same;
+  i = 0;
+  while (i < nnames) {
+    if (nlen[i] == n) {
+      same = 1;
+      k = 0;
+      while (k < n) {
+        if (pool[npos[i] + k] != src[s + k]) { same = 0; }
+        k = k + 1;
+      }
+      if (same) { return i; }
+    }
+    i = i + 1;
+  }
+  npos[nnames] = poolsize;
+  nlen[nnames] = n;
+  ndef[nnames] = 0;
+  nval[nnames] = 0;
+  k = 0;
+  while (k < n) {
+    pool[poolsize] = src[s + k];
+    poolsize = poolsize + 1;
+    k = k + 1;
+  }
+  nnames = nnames + 1;
+  return nnames - 1;
+}
+
+func isprint(s, n) {
+  if (n != 5) { return 0; }
+  if (src[s] != 112) { return 0; }
+  if (src[s + 1] != 114) { return 0; }
+  if (src[s + 2] != 105) { return 0; }
+  if (src[s + 3] != 110) { return 0; }
+  if (src[s + 4] != 116) { return 0; }
+  return 1;
+}
+
+
+// token kind for a one-byte token, 0 when the byte is not one
+func onebyte(c) {
+  if (c == 43) { return 10; }
+  if (c == 45) { return 11; }
+  if (c == 42) { return 12; }
+  if (c == 60) { return 13; }
+  if (c == 40) { return 15; }
+  if (c == 41) { return 16; }
+  if (c == 59) { return 18; }
+  return 0;
+}
+
+func isblank(c) {
+  if (c == 32) { return 1; }
+  if (c == 9) { return 1; }
+  if (c == 13) { return 1; }
+  if (c == 10) { return 1; }
+  return 0;
+}
+
+func skipcomment() {
+  while (at(sp) != -1) {
+    if (at(sp) == 10) { return 0; }
+    bump();
+  }
+  return 0;
+}
+
+// token kinds: 0 end, 1 number, 2 name, 3 print, 10 + 11 - 12 * 13 <
+// 14 == 15 ( 16 ) 17 = 18 ; 19 unknown byte
+func lex() {
+  var c;
+  var l;
+  var cl;
+  var s;
+  var v;
+  ntok = 0;
+  sp = 0;
+  line = 1;
+  col = 1;
+  while (sp < srclen) {
+    c = src[sp];
+    l = line;
+    cl = col;
+    if (isblank(c)) {
+      bump();
+    } else {
+      if (c == 35) {
+        skipcomment();
+      } else {
+        if (isnamestart(c)) {
+          s = sp;
+          while (isnamechar(at(sp))) { bump(); }
+          if (isprint(s, sp - s)) {
+            addtok(3, 0, l, cl);
+          } else {
+            addtok(2, intern(s, sp - s), l, cl);
+          }
+        } else {
+          if (isdigit(c)) {
+            v = 0;
+            while (isdigit(at(sp))) {
+              v = v * 10 + at(sp) - 48;
+              bump();
+            }
+            addtok(1, v, l, cl);
+          } else {
+            if (c == 61) {
+              if (at(sp + 1) == 61) {
+                addtok(14, 0, l, cl);
+                bump();
+              } else {
+                addtok(17, 0, l, cl);
+              }
+            } else {
+              if (onebyte(c)) {
+                addtok(onebyte(c), 0, l, cl);
+              } else {
+                addtok(19, c, l, cl);
+              }
+            }
+            bump();
+          }
+        }
+      }
+    }
+  }
+  addtok(0, 0, line, col);
+  return 0;
+}
+
+// ---------------------------------------------------------------- parser
+
+func seterr() {
+  if (err == 0) { err = tp + 1; }
+  return 0;
+}
+
+func mknode(k, v, l, r) {
+  if (nnodes >= 1000) {
+    seterr();
+    return 0;
+  }
+  kind[nnodes] = k;
+  val[nnodes] = v;
+  lft[nnodes] = l;
+  rgt[nnodes] = r;
+  nnodes = nnodes + 1;
+  return nnodes - 1;
+}
+
+func prec(k) {
+  if (k == 14) { return 1; }
+  if (k == 13) { return 2; }
+  if (k == 10) { return 3; }
+  if (k == 11) { return 3; }
+  if (k == 12) { return 4; }
+  return 0;
+}
+
+// Precedence climbing. Level 5 parses a unary minus or a primary.
+func parse(minp) {
+  var lhs;
+  var rhs;
+  var op;
+  var p;
+  var going;
+  if (minp == 5) {
+    if (tk[tp] == 11) {
+      tp = tp + 1;
+      lhs = parse(5);
+      if (err) { return 0; }
+      return mknode(2, 0, lhs, 0);
+    }
+    if (tk[tp] == 1) {
+      tp = tp + 1;
+      return mknode(0, tv[tp - 1], 0, 0);
+    }
+    if (tk[tp] == 2) {
+      tp = tp + 1;
+      return mknode(1, tv[tp - 1], 0, 0);
+    }
+    if (tk[tp] == 15) {
+      tp = tp + 1;
+      lhs = parse(1);
+      if (err) { return 0; }
+      if (tk[tp] != 16) {
+        seterr();
+        return 0;
+      }
+      tp = tp + 1;
+      return lhs;
+    }
+    seterr();
+    return 0;
+  }
+  lhs = parse(5);
+  if (err) { return 0; }
+  going = 1;
+  while (going) {
+    op = tk[tp];
+    p = prec(op);
+    going = 0;
+    if (p >= minp) {
+      if (p > 0) { going = 1; }
+    }
+    if (going) {
+      tp = tp + 1;
+      rhs = parse(p + 1);
+      if (err) { return 0; }
+      lhs = mknode(3, op, lhs, rhs);
+    }
+  }
+  return lhs;
+}
+
+// ---------------------------------------------------------------- output
+
+func printname(i) {
+  var k;
+  k = 0;
+  while (k < nlen[i]) {
+    putc(pool[npos[i] + k]);
+    k = k + 1;
+  }
+  return 0;
+}
+
+func printop(k) {
+  if (k == 10) { putc(43); }
+  if (k == 11) { putc(45); }
+  if (k == 12) { putc(42); }
+  if (k == 13) { putc(60); }
+  if (k == 14) { putc(61); putc(61); }
+  return 0;
+}
+
+func pr(n) {
+  if (kind[n] == 0) { printint(val[n]); }
+  if (kind[n] == 1) { printname(val[n]); }
+  if (kind[n] == 2) {
+    putc(40); putc(45);
+    pr(lft[n]);
+    putc(41);
+  }
+  if (kind[n] == 3) {
+    putc(40);
+    pr(lft[n]);
+    sp1();
+    printop(val[n]);
+    sp1();
+    pr(rgt[n]);
+    putc(41);
+  }
+  return 0;
+}
+
+func isnum(n, v) {
+  if (kind[n] == 0) {
+    if (val[n] == v) { return 1; }
+  }
+  return 0;
+}
+
+func copynode(dst, s) {
+  kind[dst] = kind[s];
+  val[dst] = val[s];
+  lft[dst] = lft[s];
+  rgt[dst] = rgt[s];
+  return 0;
+}
+
+func compute(op, a, b) {
+  if (op == 10) { return a + b; }
+  if (op == 11) { return a - b; }
+  if (op == 12) { return a * b; }
+  if (op == 13) { return a < b; }
+  return a == b;
+}
+
+// Folds constants in place and drops +0, -0, *1 and double negation.
+func fold(n) {
+  var l;
+  var r;
+  var op;
+  if (kind[n] == 2) {
+    fold(lft[n]);
+    l = lft[n];
+    if (kind[l] == 0) {
+      kind[n] = 0;
+      val[n] = -val[l];
+    } else {
+      if (kind[l] == 2) { copynode(n, lft[l]); }
+    }
+    return 0;
+  }
+  if (kind[n] == 3) {
+    fold(lft[n]);
+    fold(rgt[n]);
+    l = lft[n];
+    r = rgt[n];
+    op = val[n];
+    if (kind[l] == 0) {
+      if (kind[r] == 0) {
+        kind[n] = 0;
+        val[n] = compute(op, val[l], val[r]);
+        return 0;
+      }
+    }
+    if (op == 10) {
+      if (isnum(r, 0)) {
+        copynode(n, l);
+      } else {
+        if (isnum(l, 0)) { copynode(n, r); }
+      }
+      return 0;
+    }
+    if (op == 11) {
+      if (isnum(r, 0)) { copynode(n, l); }
+      return 0;
+    }
+    if (op == 12) {
+      if (isnum(r, 1)) {
+        copynode(n, l);
+      } else {
+        if (isnum(l, 1)) { copynode(n, r); }
+      }
+    }
+  }
+  return 0;
+}
+
+func emit(n) {
+  var op;
+  if (kind[n] == 0) {
+    word4(112, 117, 115, 104); sp1(); printint(val[n]); sp1();
+  }
+  if (kind[n] == 1) {
+    word4(108, 111, 97, 100); sp1(); printname(val[n]); sp1();
+  }
+  if (kind[n] == 2) {
+    emit(lft[n]);
+    word3(110, 101, 103); sp1();
+  }
+  if (kind[n] == 3) {
+    emit(lft[n]);
+    emit(rgt[n]);
+    op = val[n];
+    if (op == 10) { word3(97, 100, 100); }
+    if (op == 11) { word3(115, 117, 98); }
+    if (op == 12) { word3(109, 117, 108); }
+    if (op == 13) { word2(108, 116); }
+    if (op == 14) { word2(101, 113); }
+    sp1();
+  }
+  ncode = ncode + 1;
+  return 0;
+}
+
+func depth(n) {
+  var a;
+  var b;
+  if (kind[n] == 2) { return depth(lft[n]); }
+  if (kind[n] == 3) {
+    a = depth(lft[n]);
+    b = depth(rgt[n]) + 1;
+    if (b > a) { return b; }
+    return a;
+  }
+  return 1;
+}
+
+// Evaluates left to right; the first undefined name goes in undef (index + 1).
+func ev(n) {
+  var a;
+  var b;
+  if (kind[n] == 0) { return val[n]; }
+  if (kind[n] == 1) {
+    if (ndef[val[n]] == 0) {
+      if (undef == 0) { undef = val[n] + 1; }
+      return 0;
+    }
+    return nval[val[n]];
+  }
+  if (kind[n] == 2) { return -ev(lft[n]); }
+  a = ev(lft[n]);
+  b = ev(rgt[n]);
+  return compute(val[n], a, b);
+}
+
+// ---------------------------------------------------------------- driver
+
+func statement(sn) {
+  var target;
+  var root;
+  var v;
+  var e;
+  err = 0;
+  nnodes = 0;
+  target = -1;
+  root = 0;
+  putc(83); printint(sn); putc(58); sp1();
+  if (tk[tp] == 3) {
+    tp = tp + 1;
+  } else {
+    if (tk[tp] == 2) {
+      if (tk[tp + 1] == 17) {
+        target = tv[tp];
+        tp = tp + 2;
+      } else {
+        seterr();
+      }
+    } else {
+      seterr();
+    }
+  }
+  if (err == 0) { root = parse(1); }
+  if (err == 0) {
+    if (tk[tp] != 18) { seterr(); }
+  }
+  if (err) {
+    e = err - 1;
+    word5(115, 121, 110, 116, 97); word2(120, 32);
+    word5(101, 114, 114, 111, 114); sp1(); word2(97, 116); sp1();
+    printint(tl[e]); putc(58); printint(tc[e]); nl();
+    while (tk[tp] != 0) {
+      if (tk[tp] == 18) {
+        tp = tp + 1;
+        return 1;
+      }
+      tp = tp + 1;
+    }
+    return 1;
+  }
+  tp = tp + 1;
+  if (target >= 0) {
+    printname(target); sp1(); putc(61); sp1();
+  } else {
+    word5(112, 114, 105, 110, 116); sp1();
+  }
+  pr(root); nl();
+  sp1(); sp1(); word4(102, 111, 108, 100); putc(58); sp1();
+  fold(root);
+  pr(root); nl();
+  sp1(); sp1(); word4(99, 111, 100, 101); putc(58); sp1();
+  ncode = 0;
+  emit(root);
+  if (target >= 0) {
+    word5(115, 116, 111, 114, 101); sp1(); printname(target);
+  } else {
+    word5(112, 114, 105, 110, 116);
+  }
+  ncode = ncode + 1;
+  sp1(); putc(91); printint(ncode); sp1(); word3(111, 112, 115);
+  putc(44); sp1(); word5(100, 101, 112, 116, 104); sp1();
+  printint(depth(root)); putc(93); nl();
+  undef = 0;
+  v = ev(root);
+  sp1(); sp1();
+  if (undef) {
+    word5(101, 114, 114, 111, 114); putc(58); sp1();
+    word5(117, 110, 100, 101, 102); word4(105, 110, 101, 100); sp1();
+    printname(undef - 1); nl();
+    return 1;
+  }
+  if (target >= 0) {
+    ndef[target] = 1;
+    nval[target] = v;
+    printname(target); sp1(); putc(61); sp1();
+  } else {
+    putc(62); sp1();
+  }
+  printint(v); nl();
+  return 0;
+}
+
+func main() {
+  var sn;
+  var errors;
+  var i;
+  initp10();
+  maxtok = 3000;
+  nnames = 0;
+  poolsize = 0;
+  readall();
+  lex();
+  tp = 0;
+  sn = 0;
+  errors = 0;
+  while (tk[tp] != 0) {
+    sn = sn + 1;
+    errors = errors + statement(sn);
+  }
+  word4(118, 97, 114, 115); putc(58);
+  i = 0;
+  while (i < nnames) {
+    if (ndef[i]) {
+      sp1(); printname(i); putc(61); printint(nval[i]);
+    }
+    i = i + 1;
+  }
+  nl();
+  printint(sn); sp1(); printint(errors); sp1(); printint(ntok); sp1(); printint(nnames); nl();
+}

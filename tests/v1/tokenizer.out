@@ -1,0 +1,291 @@
+1:1 COM
+2:1 KW struct
+2:8 ID node
+2:13 PUN {
+2:15 KW int
+2:19 ID key
+2:22 PUN ;
+2:24 KW struct
+2:31 ID node
+2:36 OP *
+2:37 ID next
+2:41 PUN ;
+2:43 PUN }
+2:44 PUN ;
+3:1 KW int
+3:5 ID count
+3:11 OP =
+3:13 NUM 0x1F =31
+3:18 OP +
+3:20 NUM 0XfF =255
+3:25 OP -
+3:27 NUM 017 =17
+3:31 OP +
+3:33 NUM 0 =0
+3:34 ID x
+3:35 PUN ;
+3:39 COM
+4:1 KW char
+4:6 OP *
+4:7 ID msg
+4:11 OP =
+4:13 STR len=15
+4:33 PUN ;
+5:1 KW char
+5:6 ID c1
+5:9 OP =
+5:11 CHR =97
+5:14 PUN ,
+5:16 ID c2
+5:19 OP =
+5:21 CHR =10
+5:25 PUN ,
+5:27 ID c3
+5:30 OP =
+5:32 CHR =39
+5:36 PUN ,
+5:38 ID c4
+5:41 OP =
+5:43 CHR =92
+5:47 PUN ,
+5:49 ID c5
+5:52 OP =
+5:54 CHR =0
+5:58 PUN ;
+6:1 KW func
+6:6 ID fib
+6:9 PUN (
+6:10 ID n
+6:11 PUN )
+6:13 PUN {
+7:5 KW if
+7:8 PUN (
+7:9 ID n
+7:11 OP <=
+7:14 NUM 1 =1
+7:15 PUN )
+7:17 PUN {
+7:19 KW return
+7:26 ID n
+7:27 PUN ;
+7:29 PUN }
+8:5 KW return
+8:12 ID fib
+8:15 PUN (
+8:16 ID n
+8:18 OP -
+8:20 NUM 1 =1
+8:21 PUN )
+8:23 OP +
+8:25 ID fib
+8:28 PUN (
+8:29 ID n
+8:31 OP -
+8:33 NUM 2 =2
+8:34 PUN )
+8:35 PUN ;
+9:1 PUN }
+10:1 KW void
+10:6 ID loop
+10:10 PUN (
+10:11 KW void
+10:15 PUN )
+10:17 PUN {
+11:5 KW for
+11:9 PUN (
+11:10 ID i
+11:12 OP =
+11:14 NUM 0 =0
+11:15 PUN ;
+11:17 ID i
+11:19 OP <
+11:21 NUM 10 =10
+11:23 PUN ;
+11:25 ID i
+11:26 OP ++
+11:28 PUN )
+11:30 PUN {
+11:32 ID total
+11:38 OP +=
+11:41 ID i
+11:43 OP *
+11:45 NUM 2 =2
+11:46 PUN ;
+11:48 KW if
+11:51 PUN (
+11:52 ID i
+11:54 OP ==
+11:57 NUM 7 =7
+11:58 PUN )
+11:60 KW break
+11:65 PUN ;
+11:67 KW else
+11:72 KW continue
+11:80 PUN ;
+11:82 PUN }
+12:5 KW while
+12:11 PUN (
+12:12 ID p
+12:14 OP !=
+12:17 NUM 0 =0
+12:19 OP &&
+12:22 ID q
+12:24 OP ||
+12:27 OP !
+12:28 ID r
+12:29 PUN )
+12:31 PUN {
+12:33 ID p
+12:35 OP =
+12:37 ID p
+12:38 OP ->
+12:40 ID next
+12:44 PUN ;
+12:46 ID x
+12:48 OP <<
+12:50 OP =
+12:52 NUM 1 =1
+12:53 PUN ;
+12:55 ID y
+12:57 OP =
+12:59 ID y
+12:61 OP >>
+12:64 NUM 2 =2
+12:65 PUN ;
+12:67 OP --
+12:69 ID z
+12:70 PUN ;
+12:72 PUN }
+13:5 ID a
+13:7 OP =
+13:9 ID b
+13:11 OP ?
+13:13 ID c
+13:15 OP :
+13:17 ID d
+13:18 PUN ;
+13:20 ID e
+13:22 OP =
+13:24 OP ~
+13:25 ID f
+13:27 OP ^
+13:29 ID g
+13:31 OP |
+13:33 ID h
+13:35 OP &
+13:37 ID k
+13:39 OP %
+13:41 ID m
+13:43 OP /
+13:45 ID n
+13:46 PUN ;
+14:1 PUN }
+15:1 COM
+16:22 KW int
+16:26 ID after_comment
+16:40 OP =
+16:42 NUM 42 =42
+16:44 PUN ;
+17:1 KW var
+17:5 ID _under_score9
+17:18 PUN ;
+17:20 KW array
+17:26 ID arr
+17:29 PUN [
+17:30 NUM 100 =100
+17:33 PUN ]
+17:34 PUN ;
+18:1 ID x
+18:3 OP =
+18:5 ERR "
+19:1 ID y
+19:3 OP =
+19:5 ERR '
+19:6 ID ab
+19:8 ERR '
+19:9 PUN ;
+19:12 ID z
+19:14 OP =
+19:16 ERR '
+19:17 ERR '
+19:18 PUN ;
+19:21 ID w
+19:23 OP =
+19:25 CHR =39
+19:28 PUN ;
+20:1 ERR #64
+20:3 ERR #36
+20:5 ERR #96
+20:7 ERR #35
+20:8 ID define
+21:1 ID very_long_identifier_name_that_goes_on
+21:40 OP =
+21:42 NUM 123456789 =123456789
+21:51 PUN ;
+22:1 ID fib
+22:5 ID fib
+22:9 ID fib
+22:13 ID count
+22:19 ID count
+22:25 ID x
+22:27 ID x
+22:29 ID x
+22:31 ID x
+23:1 NUM 1234 =1234
+23:5 ID abc
+23:9 NUM 0x10 =16
+23:13 ID X5
+23:16 NUM 99 =99
+23:18 COM
+23:28 NUM 88 =88
+23:31 COM
+24:1 ERR #200
+25:2 ID last
+25:7 OP =
+25:9 STR len=4
+25:15 PUN ;
+26:1 ID end
+26:5 COM
+KW=21 ID=71 NUM=21 STR=2 CHR=6 OP=50 PUN=61 COM=6 ERR=10
+node 2
+key 1
+next 2
+count 3
+x 7
+msg 1
+c1 1
+c2 1
+c3 1
+c4 1
+c5 1
+fib 6
+n 6
+loop 1
+i 5
+total 1
+p 3
+q 1
+r 1
+y 3
+z 2
+a 1
+b 1
+c 1
+d 1
+e 1
+f 1
+g 1
+h 1
+k 1
+m 1
+after_comment 1
+_under_score9 1
+arr 1
+ab 1
+w 1
+define 1
+very_long_identifier_name_that_goes_on 1
+abc 1
+X5 1
+last 1
+end 1

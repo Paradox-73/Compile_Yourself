@@ -1,0 +1,181 @@
+// Decimal, hex and binary printing of 32-bit values, including the
+// extremes, plus wrap-around arithmetic and signed comparisons.
+
+var intmax;
+var intmin;
+array p10[10];
+
+func initp10() {
+  var i;
+  p10[0] = 1;
+  i = 1;
+  while (i < 10) {
+    p10[i] = p10[i - 1] * 10;
+    i = i + 1;
+  }
+  return 0;
+}
+
+func nl() { putc(10); return 0; }
+func sp() { putc(32); return 0; }
+
+// Works on the negative side so that the smallest value prints too.
+func printint(n) {
+  var i;
+  var d;
+  var started;
+  if (n < 0) { putc(45); } else { n = -n; }
+  started = 0;
+  i = 9;
+  while (i >= 0) {
+    d = 0;
+    while (n <= -p10[i]) {
+      n = n + p10[i];
+      d = d + 1;
+    }
+    if (d != 0) { started = 1; }
+    if (i == 0) { started = 1; }
+    if (started) { putc(48 + d); }
+    i = i - 1;
+  }
+  return 0;
+}
+
+// Takes bits from the top: the sign tells the top bit, n + n shifts left.
+func nibble(n) {
+  var j;
+  var v;
+  v = 0;
+  j = 0;
+  while (j < 4) {
+    v = v + v;
+    if (n < 0) { v = v + 1; }
+    n = n + n;
+    j = j + 1;
+  }
+  return v;
+}
+
+func printhex(n) {
+  var k;
+  var v;
+  putc(48); putc(120);
+  k = 0;
+  while (k < 8) {
+    v = nibble(n);
+    if (v < 10) { putc(48 + v); } else { putc(87 + v); }
+    n = n * 16;
+    k = k + 1;
+  }
+  return 0;
+}
+
+func printbin(n) {
+  var k;
+  k = 0;
+  while (k < 32) {
+    if (n < 0) { putc(49); } else { putc(48); }
+    n = n + n;
+    k = k + 1;
+    if (k == 8) { putc(95); }
+    if (k == 16) { putc(95); }
+    if (k == 24) { putc(95); }
+  }
+  return 0;
+}
+
+func show(n) {
+  printint(n); sp(); printhex(n); sp(); printbin(n); nl();
+  return 0;
+}
+
+func showbool(b) {
+  putc(48 + b);
+  return 0;
+}
+
+func main() {
+  var i;
+  var x;
+  var f;
+  var a;
+  var b;
+  var t;
+  initp10();
+  intmax = 2147483647;
+  intmin = -2147483647 - 1;
+  show(intmax);
+  show(intmin);
+  show(intmax + 1);
+  show(intmin - 1);
+  show(-intmin);
+  show(intmin * -1);
+  show(intmin + intmin);
+  show(intmax + intmax);
+  show(intmax * intmax);
+  show(0);
+  show(-0);
+  show(1);
+  show(-1);
+  show(65536 * 65536);
+  show(65536 * 32768);
+  show(46341 * 46341);
+  show(123456789 * 987654321);
+  show(-7 * 3 + 2);
+  show(10 - 3 - 2);
+  show(2 * -3 * -4);
+  show(- -5);
+  show(-(2 + 3) * 4);
+  // powers of ten and their neighbours
+  i = 0;
+  while (i < 10) {
+    printint(p10[i]); sp();
+    printint(p10[i] - 1); sp();
+    printint(-p10[i]); sp();
+    printint(1 - p10[i]); nl();
+    i = i + 1;
+  }
+  // comparisons on true signed values
+  showbool(2000000000 < -2000000000);
+  showbool(-2000000000 < 2000000000);
+  showbool(intmin < intmax);
+  showbool(intmax > intmin);
+  showbool(intmin <= intmin);
+  showbool(intmax >= intmin);
+  showbool(intmin == -intmin);
+  showbool(intmax != intmin);
+  showbool(intmin < 0);
+  showbool(intmax + 1 < 0);
+  showbool(-1 > intmin);
+  showbool(1 - intmin > 0);
+  showbool(3 > 2 > 1);
+  showbool((3 < 5) + (5 < 3) * 7 == 1);
+  nl();
+  // wrapped factorials
+  f = 1;
+  i = 1;
+  while (i <= 20) {
+    f = f * i;
+    printint(i); putc(58); sp(); printint(f); sp(); printhex(f); nl();
+    i = i + 1;
+  }
+  // wrapped Fibonacci
+  a = 0;
+  b = 1;
+  i = 0;
+  while (i < 60) {
+    t = a + b;
+    a = b;
+    b = t;
+    i = i + 1;
+  }
+  printint(a); sp(); printint(b); nl();
+  // linear congruential generator
+  x = 12345;
+  i = 0;
+  while (i < 24) {
+    x = x * 1103515245 + 12345;
+    printint(x); sp(); printhex(x); nl();
+    i = i + 1;
+  }
+}

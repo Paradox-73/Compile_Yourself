@@ -1,0 +1,269 @@
+// Reads records "key name" one per line, then:
+//  1. stable merge sort by key (ties keep input order), counting inversions,
+//  2. stable merge sort by name (byte order), ties keep key order,
+// and prints both orders plus a per-key group summary.
+
+var maxrec;
+array key[600];
+array nstart[600];
+array nlen[600];
+array pool[8000];
+var poolsize;
+var nrec;
+array idx[600];
+array tmp[600];
+var inversions;
+var mode;           // 0 = compare keys, 1 = compare names
+var look;
+var gotnum;
+array p10[10];
+
+func initp10() {
+  var i;
+  p10[0] = 1;
+  i = 1;
+  while (i < 10) {
+    p10[i] = p10[i - 1] * 10;
+    i = i + 1;
+  }
+  return 0;
+}
+
+func printint(x) {
+  var i;
+  var d;
+  var started;
+  if (x < 0) { putc(45); } else { x = -x; }
+  started = 0;
+  i = 9;
+  while (i >= 0) {
+    d = 0;
+    while (x <= -p10[i]) {
+      x = x + p10[i];
+      d = d + 1;
+    }
+    if (d != 0) { started = 1; }
+    if (i == 0) { started = 1; }
+    if (started) { putc(48 + d); }
+    i = i - 1;
+  }
+  return 0;
+}
+
+func isdigit(c) {
+  if (c >= 48) {
+    if (c <= 57) { return 1; }
+  }
+  return 0;
+}
+
+func isspace(c) {
+  if (c == 32) { return 1; }
+  if (c == 9) { return 1; }
+  if (c == 10) { return 1; }
+  if (c == 13) { return 1; }
+  return 0;
+}
+
+func readnum() {
+  var neg;
+  var v;
+  neg = 0;
+  gotnum = 0;
+  while (gotnum == 0) {
+    if (look == -1) { return 0; }
+    if (look == 45) {
+      look = getc();
+      if (isdigit(look)) {
+        neg = 1;
+        gotnum = 1;
+      }
+    } else {
+      if (isdigit(look)) {
+        gotnum = 1;
+      } else {
+        look = getc();
+      }
+    }
+  }
+  v = 0;
+  while (isdigit(look)) {
+    v = v * 10 + look - 48;
+    look = getc();
+  }
+  if (neg) { v = -v; }
+  return v;
+}
+
+// Reads the name after the key: skips blanks, keeps bytes up to whitespace.
+func readname(r) {
+  while (look == 32) { look = getc(); }
+  while (look == 9) { look = getc(); }
+  nstart[r] = poolsize;
+  nlen[r] = 0;
+  while (look != -1) {
+    if (isspace(look)) { return 0; }
+    pool[poolsize] = look;
+    poolsize = poolsize + 1;
+    nlen[r] = nlen[r] + 1;
+    look = getc();
+  }
+  return 0;
+}
+
+func printname(r) {
+  var k;
+  k = 0;
+  while (k < nlen[r]) {
+    putc(pool[nstart[r] + k]);
+    k = k + 1;
+  }
+  return 0;
+}
+
+// Byte-wise compare of two names: -1, 0 or 1.
+func namecmp(r, s) {
+  var k;
+  var ca;
+  var cb;
+  k = 0;
+  while (k < nlen[r]) {
+    if (k >= nlen[s]) { return 1; }
+    ca = pool[nstart[r] + k];
+    cb = pool[nstart[s] + k];
+    if (ca < cb) { return -1; }
+    if (ca > cb) { return 1; }
+    k = k + 1;
+  }
+  if (nlen[r] < nlen[s]) { return -1; }
+  return 0;
+}
+
+// 1 when record r must come strictly after record s.
+func after(r, s) {
+  if (mode == 0) { return key[r] > key[s]; }
+  return namecmp(r, s) > 0;
+}
+
+func msort(lo, hi) {
+  var mid;
+  var j;
+  var i;
+  var k;
+  if (hi - lo < 2) { return 0; }
+  mid = lo;
+  j = hi;
+  while (mid + 1 < j) {
+    mid = mid + 1;
+    j = j - 1;
+  }
+  msort(lo, mid);
+  msort(mid, hi);
+  i = lo;
+  j = mid;
+  k = lo;
+  while (k < hi) {
+    if (i < mid) {
+      if (j < hi) {
+        if (after(idx[i], idx[j])) {
+          tmp[k] = idx[j];
+          inversions = inversions + mid - i;
+          j = j + 1;
+        } else {
+          tmp[k] = idx[i];
+          i = i + 1;
+        }
+      } else {
+        tmp[k] = idx[i];
+        i = i + 1;
+      }
+    } else {
+      tmp[k] = idx[j];
+      j = j + 1;
+    }
+    k = k + 1;
+  }
+  k = lo;
+  while (k < hi) {
+    idx[k] = tmp[k];
+    k = k + 1;
+  }
+  return 0;
+}
+
+func dump() {
+  var k;
+  var r;
+  k = 0;
+  while (k < nrec) {
+    r = idx[k];
+    printint(key[r]);
+    putc(32);
+    printname(r);
+    putc(32);
+    putc(35);
+    printint(r);
+    putc(10);
+    k = k + 1;
+  }
+  return 0;
+}
+
+func groups() {
+  var k;
+  var cnt;
+  var cur;
+  k = 0;
+  while (k < nrec) {
+    cur = key[idx[k]];
+    cnt = 0;
+    while (k < nrec) {
+      if (key[idx[k]] != cur) {
+        printint(cur); putc(120); printint(cnt); putc(32);
+        cur = key[idx[k]];
+        cnt = 0;
+      }
+      cnt = cnt + 1;
+      k = k + 1;
+    }
+    printint(cur); putc(120); printint(cnt); putc(10);
+  }
+  return 0;
+}
+
+func main() {
+  var x;
+  var k;
+  initp10();
+  maxrec = 600;
+  nrec = 0;
+  poolsize = 0;
+  look = getc();
+  x = readnum();
+  while (gotnum) {
+    if (nrec < maxrec) {
+      key[nrec] = x;
+      readname(nrec);
+      nrec = nrec + 1;
+    }
+    x = readnum();
+  }
+  k = 0;
+  while (k < nrec) {
+    idx[k] = k;
+    k = k + 1;
+  }
+  mode = 0;
+  inversions = 0;
+  msort(0, nrec);
+  putc(75); putc(69); putc(89); putc(10);
+  dump();
+  putc(105); putc(61); printint(inversions); putc(10);
+  groups();
+  mode = 1;
+  inversions = 0;
+  msort(0, nrec);
+  putc(78); putc(65); putc(77); putc(69); putc(10);
+  dump();
+  putc(105); putc(61); printint(inversions); putc(10);
+}

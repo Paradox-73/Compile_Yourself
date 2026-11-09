@@ -1,0 +1,2 @@
+# inputs and expected outputs are exact bytes (some contain CR); never convert line endings
+* -text

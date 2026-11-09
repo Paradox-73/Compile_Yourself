@@ -1176,6 +1176,8 @@ func genmul() {
     var top;
     var skip;
     var done;
+    var lz;
+    var ret;
     place(mulent);
     top = newlab();
     skip = newlab();
@@ -1183,6 +1185,14 @@ func genmul() {
     clr(opMR);
     clr(opMC);
     e2(opMC, con(32));
+    lz = newlab();
+    ret = newlab();
+    place(lz);
+    jlt(opMB, top);
+    add(opMB, opMB);
+    e2(opMC, opM1);
+    jlt(opMC, lz);
+    jmp(ret);
     place(top);
     add(opMR, opMR);
     emit(opMB, opZ, op(1, skip));
@@ -1193,6 +1203,7 @@ func genmul() {
     add(opMB, opMB);
     e2(opMC, opM1);
     emit(opMC, opZ, op(1, top));
+    place(ret);
     clr(op(0, pc + 8));
     e2(op(0, pc + 5), opMN);
     emit(opM1, opZ, op(0, 0));

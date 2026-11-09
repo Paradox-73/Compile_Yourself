@@ -1,0 +1,143 @@
+// Sieve of Eratosthenes up to 10000. Prints all primes ten per line,
+// then statistics: count, sum, twin pairs, largest gap, and Goldbach
+// representation counts for every multiple of 500.
+
+var limit;
+array composite[10001];
+array primes[1300];
+var nprimes;
+array p10[10];
+
+func initp10() {
+  var i;
+  p10[0] = 1;
+  i = 1;
+  while (i < 10) {
+    p10[i] = p10[i - 1] * 10;
+    i = i + 1;
+  }
+  return 0;
+}
+
+func printint(n) {
+  var i;
+  var d;
+  var started;
+  if (n < 0) { putc(45); } else { n = -n; }
+  started = 0;
+  i = 9;
+  while (i >= 0) {
+    d = 0;
+    while (n <= -p10[i]) {
+      n = n + p10[i];
+      d = d + 1;
+    }
+    if (d != 0) { started = 1; }
+    if (i == 0) { started = 1; }
+    if (started) { putc(48 + d); }
+    i = i - 1;
+  }
+  return 0;
+}
+
+func label(a, b, c) {
+  putc(a); putc(b); putc(c); putc(61);
+  return 0;
+}
+
+func sieve() {
+  var i;
+  var j;
+  composite[0] = 1;
+  composite[1] = 1;
+  i = 2;
+  while (i * i <= limit) {
+    if (composite[i] == 0) {
+      j = i * i;
+      while (j <= limit) {
+        composite[j] = 1;
+        j = j + i;
+      }
+    }
+    i = i + 1;
+  }
+  nprimes = 0;
+  i = 2;
+  while (i <= limit) {
+    if (composite[i] == 0) {
+      primes[nprimes] = i;
+      nprimes = nprimes + 1;
+    }
+    i = i + 1;
+  }
+  return 0;
+}
+
+func printall() {
+  var i;
+  var col;
+  i = 0;
+  col = 0;
+  while (i < nprimes) {
+    if (col > 0) { putc(32); }
+    printint(primes[i]);
+    col = col + 1;
+    if (col == 10) {
+      putc(10);
+      col = 0;
+    }
+    i = i + 1;
+  }
+  if (col > 0) { putc(10); }
+  return 0;
+}
+
+func goldbach(n) {
+  var k;
+  var c;
+  c = 0;
+  k = 0;
+  while (primes[k] + primes[k] <= n) {
+    if (composite[n - primes[k]] == 0) { c = c + 1; }
+    k = k + 1;
+  }
+  return c;
+}
+
+func main() {
+  var i;
+  var sum;
+  var twins;
+  var gap;
+  var gapat;
+  var n;
+  initp10();
+  limit = 10000;
+  sieve();
+  printall();
+  sum = 0;
+  twins = 0;
+  gap = 0;
+  gapat = 0;
+  i = 0;
+  while (i < nprimes) {
+    sum = sum + primes[i];
+    if (i > 0) {
+      if (primes[i] - primes[i - 1] == 2) { twins = twins + 1; }
+      if (primes[i] - primes[i - 1] > gap) {
+        gap = primes[i] - primes[i - 1];
+        gapat = primes[i - 1];
+      }
+    }
+    i = i + 1;
+  }
+  label(99, 110, 116); printint(nprimes); putc(10);
+  label(115, 117, 109); printint(sum); putc(10);
+  label(116, 119, 110); printint(twins); putc(10);
+  label(103, 97, 112); printint(gap); putc(32); printint(gapat); putc(10);
+  n = 500;
+  while (n <= limit) {
+    printint(n); putc(58); printint(goldbach(n)); putc(10);
+    n = n + 500;
+  }
+}

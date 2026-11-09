@@ -1,0 +1,621 @@
+// A lexer for C-like source text. Reads the whole input, prints one line
+// per token as "line:col KIND detail", then a count per kind and a table
+// of identifiers (first-seen order) with how often each appeared.
+//
+// Token rules:
+//   blank: space, tab, CR, LF            comment: // to end of line, /* ... */
+//   name: letter or _ then letters, digits, _   (keywords print as KW)
+//   number: decimal digits, or 0x / 0X followed by hex digits
+//   string: "..." with backslash escapes, must close on the same line
+//   char: 'c' or '\c'
+//   operators: two-byte ones first (== != <= >= && || ++ -- += -= -> << >>)
+//   anything else is an ERR token
+
+var cap;
+array src[12000];
+var srclen;
+var pos;
+var line;
+var col;
+
+// keyword table: 8 bytes per keyword, zero padded
+array kwtab[160];
+var nkw;
+
+// identifier table, open addressing over 256 slots
+array idstart[256];
+array idlen[256];
+array idcount[256];
+array idorder[256];
+var nids;
+
+// counts per kind
+array kindcount[12];
+
+array p10[10];
+
+func initp10() {
+  var i;
+  p10[0] = 1;
+  i = 1;
+  while (i < 10) {
+    p10[i] = p10[i - 1] * 10;
+    i = i + 1;
+  }
+  return 0;
+}
+
+func printint(x) {
+  var i;
+  var d;
+  var started;
+  if (x < 0) { putc(45); } else { x = -x; }
+  started = 0;
+  i = 9;
+  while (i >= 0) {
+    d = 0;
+    while (x <= -p10[i]) {
+      x = x + p10[i];
+      d = d + 1;
+    }
+    if (d != 0) { started = 1; }
+    if (i == 0) { started = 1; }
+    if (started) { putc(48 + d); }
+    i = i - 1;
+  }
+  return 0;
+}
+
+func addkw(a, b, c, d, e, f, g, h) {
+  var base;
+  base = nkw * 8;
+  kwtab[base] = a;
+  kwtab[base + 1] = b;
+  kwtab[base + 2] = c;
+  kwtab[base + 3] = d;
+  kwtab[base + 4] = e;
+  kwtab[base + 5] = f;
+  kwtab[base + 6] = g;
+  kwtab[base + 7] = h;
+  nkw = nkw + 1;
+  return 0;
+}
+
+func initkw() {
+  nkw = 0;
+  addkw(118, 97, 114, 0, 0, 0, 0, 0);          // var
+  addkw(97, 114, 114, 97, 121, 0, 0, 0);       // array
+  addkw(102, 117, 110, 99, 0, 0, 0, 0);        // func
+  addkw(105, 102, 0, 0, 0, 0, 0, 0);           // if
+  addkw(101, 108, 115, 101, 0, 0, 0, 0);       // else
+  addkw(119, 104, 105, 108, 101, 0, 0, 0);     // while
+  addkw(114, 101, 116, 117, 114, 110, 0, 0);   // return
+  addkw(105, 110, 116, 0, 0, 0, 0, 0);         // int
+  addkw(99, 104, 97, 114, 0, 0, 0, 0);         // char
+  addkw(102, 111, 114, 0, 0, 0, 0, 0);         // for
+  addkw(98, 114, 101, 97, 107, 0, 0, 0);       // break
+  addkw(99, 111, 110, 116, 105, 110, 117, 101); // continue
+  addkw(115, 116, 114, 117, 99, 116, 0, 0);    // struct
+  addkw(118, 111, 105, 100, 0, 0, 0, 0);       // void
+  return 0;
+}
+
+func readall() {
+  var c;
+  srclen = 0;
+  c = getc();
+  while (c != -1) {
+    if (srclen < cap) {
+      src[srclen] = c;
+      srclen = srclen + 1;
+    }
+    c = getc();
+  }
+  return 0;
+}
+
+// byte at position p, or -1 past the end
+func at(p) {
+  if (p < srclen) { return src[p]; }
+  return -1;
+}
+
+func isdigit(c) {
+  if (c >= 48) {
+    if (c <= 57) { return 1; }
+  }
+  return 0;
+}
+
+func isalpha(c) {
+  if (c == 95) { return 1; }
+  if (c >= 97) {
+    if (c <= 122) { return 1; }
+  }
+  if (c >= 65) {
+    if (c <= 90) { return 1; }
+  }
+  return 0;
+}
+
+func isalnum(c) {
+  if (isalpha(c)) { return 1; }
+  return isdigit(c);
+}
+
+func hexval(c) {
+  if (isdigit(c)) { return c - 48; }
+  if (c >= 97) {
+    if (c <= 102) { return c - 87; }
+  }
+  if (c >= 65) {
+    if (c <= 70) { return c - 55; }
+  }
+  return -1;
+}
+
+// Moves forward one byte, keeping line and column right.
+func advance() {
+  if (src[pos] == 10) {
+    line = line + 1;
+    col = 1;
+  } else {
+    col = col + 1;
+  }
+  pos = pos + 1;
+  return 0;
+}
+
+// kinds
+//  0 KW  1 ID  2 NUM  3 STR  4 CHR  5 OP  6 PUN  7 COM  8 ERR
+func printkind(k) {
+  if (k == 0) { putc(75); putc(87); }
+  if (k == 1) { putc(73); putc(68); }
+  if (k == 2) { putc(78); putc(85); putc(77); }
+  if (k == 3) { putc(83); putc(84); putc(82); }
+  if (k == 4) { putc(67); putc(72); putc(82); }
+  if (k == 5) { putc(79); putc(80); }
+  if (k == 6) { putc(80); putc(85); putc(78); }
+  if (k == 7) { putc(67); putc(79); putc(77); }
+  if (k == 8) { putc(69); putc(82); putc(82); }
+  return 0;
+}
+
+func begin(k, l, c) {
+  printint(l);
+  putc(58);
+  printint(c);
+  putc(32);
+  printkind(k);
+  kindcount[k] = kindcount[k] + 1;
+  return 0;
+}
+
+func puttext(s, n) {
+  var i;
+  i = 0;
+  while (i < n) {
+    putc(src[s + i]);
+    i = i + 1;
+  }
+  return 0;
+}
+
+// 1 when src[s..s+n) equals keyword k
+func matchkw(s, n, k) {
+  var i;
+  if (n > 8) { return 0; }
+  i = 0;
+  while (i < n) {
+    if (kwtab[k * 8 + i] != src[s + i]) { return 0; }
+    i = i + 1;
+  }
+  if (n < 8) {
+    if (kwtab[k * 8 + n] != 0) { return 0; }
+  }
+  return 1;
+}
+
+func iskeyword(s, n) {
+  var k;
+  k = 0;
+  while (k < nkw) {
+    if (matchkw(s, n, k)) { return 1; }
+    k = k + 1;
+  }
+  return 0;
+}
+
+func sametext(a, b, n) {
+  var i;
+  i = 0;
+  while (i < n) {
+    if (src[a + i] != src[b + i]) { return 0; }
+    i = i + 1;
+  }
+  return 1;
+}
+
+// low 8 bits of a word, read from the top after shifting left by 24
+func lowbyte(h) {
+  var x;
+  var v;
+  var k;
+  x = h * 16777216;
+  v = 0;
+  k = 0;
+  while (k < 8) {
+    v = v + v;
+    if (x < 0) { v = v + 1; }
+    x = x + x;
+    k = k + 1;
+  }
+  return v;
+}
+
+func noteident(s, n) {
+  var h;
+  var i;
+  var slot;
+  var searching;
+  h = 5381;
+  i = 0;
+  while (i < n) {
+    h = h * 33 + src[s + i];
+    i = i + 1;
+  }
+  slot = lowbyte(h);
+  searching = 1;
+  while (searching) {
+    if (idlen[slot] == 0) {
+      idstart[slot] = s;
+      idlen[slot] = n;
+      idcount[slot] = 1;
+      idorder[nids] = slot;
+      nids = nids + 1;
+      searching = 0;
+    } else {
+      if (idlen[slot] == n) {
+        if (sametext(idstart[slot], s, n)) {
+          idcount[slot] = idcount[slot] + 1;
+          searching = 0;
+        }
+      }
+      if (searching) {
+        slot = slot + 1;
+        if (slot == 256) { slot = 0; }
+      }
+    }
+  }
+  return 0;
+}
+
+func lexname(l, c) {
+  var s;
+  var n;
+  s = pos;
+  while (isalnum(at(pos))) { advance(); }
+  n = pos - s;
+  if (iskeyword(s, n)) {
+    begin(0, l, c);
+  } else {
+    begin(1, l, c);
+    if (nids < 200) { noteident(s, n); }
+  }
+  putc(32);
+  puttext(s, n);
+  putc(10);
+  return 0;
+}
+
+func lexnumber(l, c) {
+  var s;
+  var v;
+  var x;
+  s = pos;
+  v = 0;
+  if (at(pos) == 48) {
+    x = at(pos + 1);
+    if (x == 88) { x = 120; }
+    if (x == 120) {
+      if (hexval(at(pos + 2)) >= 0) {
+        advance();
+        advance();
+        while (hexval(at(pos)) >= 0) {
+          v = v * 16 + hexval(at(pos));
+          advance();
+        }
+      }
+    }
+  }
+  if (pos == s) {
+    while (isdigit(at(pos))) {
+      v = v * 10 + at(pos) - 48;
+      advance();
+    }
+  }
+  begin(2, l, c);
+  putc(32);
+  puttext(s, pos - s);
+  putc(32);
+  putc(61);
+  printint(v);
+  putc(10);
+  return 0;
+}
+
+func escape(e) {
+  if (e == 110) { return 10; }
+  if (e == 116) { return 9; }
+  if (e == 48) { return 0; }
+  return e;
+}
+
+func lexstring(l, c) {
+  var n;
+  var going;
+  var ok;
+  advance();
+  n = 0;
+  going = 1;
+  ok = 0;
+  while (going) {
+    if (at(pos) == -1) {
+      going = 0;
+    } else {
+      if (at(pos) == 10) {
+        going = 0;
+      } else {
+        if (at(pos) == 34) {
+          advance();
+          ok = 1;
+          going = 0;
+        } else {
+          if (at(pos) == 92) {
+            if (at(pos + 1) != -1) {
+              if (at(pos + 1) != 10) { advance(); }
+            }
+          }
+          advance();
+          n = n + 1;
+        }
+      }
+    }
+  }
+  if (ok) {
+    begin(3, l, c);
+    putc(32);
+    putc(108); putc(101); putc(110); putc(61);
+    printint(n);
+  } else {
+    begin(8, l, c);
+    putc(32);
+    putc(34);
+  }
+  putc(10);
+  return 0;
+}
+
+func lexchar(l, c) {
+  var v;
+  var ok;
+  ok = 0;
+  v = 0;
+  advance();
+  if (at(pos) == 92) {
+    if (at(pos + 2) == 39) {
+      v = escape(at(pos + 1));
+      advance();
+      advance();
+      advance();
+      ok = 1;
+    }
+  } else {
+    if (at(pos + 1) == 39) {
+      if (at(pos) != 10) {
+        v = at(pos);
+        advance();
+        advance();
+        ok = 1;
+      }
+    }
+  }
+  if (ok) {
+    begin(4, l, c);
+    putc(32);
+    putc(61);
+    printint(v);
+  } else {
+    begin(8, l, c);
+    putc(32);
+    putc(39);
+  }
+  putc(10);
+  return 0;
+}
+
+// 1 when the two bytes a b form a two-byte operator
+func twobyte(a, b) {
+  if (b == 61) {
+    if (a == 61) { return 1; }
+    if (a == 33) { return 1; }
+    if (a == 60) { return 1; }
+    if (a == 62) { return 1; }
+    if (a == 43) { return 1; }
+    if (a == 45) { return 1; }
+  }
+  if (a == b) {
+    if (a == 38) { return 1; }
+    if (a == 124) { return 1; }
+    if (a == 43) { return 1; }
+    if (a == 45) { return 1; }
+    if (a == 60) { return 1; }
+    if (a == 62) { return 1; }
+  }
+  if (a == 45) {
+    if (b == 62) { return 1; }
+  }
+  return 0;
+}
+
+func isop(a) {
+  if (a == 43) { return 1; }   // +
+  if (a == 45) { return 1; }   // -
+  if (a == 42) { return 1; }   // *
+  if (a == 47) { return 1; }   // /
+  if (a == 37) { return 1; }   // %
+  if (a == 60) { return 1; }   // <
+  if (a == 62) { return 1; }   // >
+  if (a == 61) { return 1; }   // =
+  if (a == 33) { return 1; }   // !
+  if (a == 38) { return 1; }   // &
+  if (a == 124) { return 1; }  // |
+  if (a == 94) { return 1; }   // ^
+  if (a == 126) { return 1; }  // ~
+  if (a == 63) { return 1; }   // ?
+  if (a == 58) { return 1; }   // :
+  if (a == 46) { return 1; }   // .
+  return 0;
+}
+
+func ispunct(a) {
+  if (a == 40) { return 1; }
+  if (a == 41) { return 1; }
+  if (a == 123) { return 1; }
+  if (a == 125) { return 1; }
+  if (a == 91) { return 1; }
+  if (a == 93) { return 1; }
+  if (a == 59) { return 1; }
+  if (a == 44) { return 1; }
+  return 0;
+}
+
+func skipcomment(l, c) {
+  var going;
+  if (at(pos + 1) == 47) {
+    while (at(pos) != -1) {
+      if (at(pos) == 10) { return 0; }
+      advance();
+    }
+    return 0;
+  }
+  advance();
+  advance();
+  going = 1;
+  while (going) {
+    if (at(pos) == -1) {
+      going = 0;
+    } else {
+      if (at(pos) == 42) {
+        if (at(pos + 1) == 47) {
+          advance();
+          going = 0;
+        }
+      }
+      advance();
+    }
+  }
+  return 0;
+}
+
+func lexone() {
+  var ch;
+  var l;
+  var c;
+  ch = at(pos);
+  l = line;
+  c = col;
+  if (ch == 32) { advance(); return 0; }
+  if (ch == 9) { advance(); return 0; }
+  if (ch == 13) { advance(); return 0; }
+  if (ch == 10) { advance(); return 0; }
+  if (ch == 47) {
+    if (at(pos + 1) == 47) {
+      begin(7, l, c);
+      putc(10);
+      skipcomment(l, c);
+      return 0;
+    }
+    if (at(pos + 1) == 42) {
+      begin(7, l, c);
+      putc(10);
+      skipcomment(l, c);
+      return 0;
+    }
+  }
+  if (isalpha(ch)) { lexname(l, c); return 0; }
+  if (isdigit(ch)) { lexnumber(l, c); return 0; }
+  if (ch == 34) { lexstring(l, c); return 0; }
+  if (ch == 39) { lexchar(l, c); return 0; }
+  if (twobyte(ch, at(pos + 1))) {
+    begin(5, l, c);
+    putc(32);
+    putc(ch);
+    putc(at(pos + 1));
+    putc(10);
+    advance();
+    advance();
+    return 0;
+  }
+  if (isop(ch)) {
+    begin(5, l, c);
+    putc(32);
+    putc(ch);
+    putc(10);
+    advance();
+    return 0;
+  }
+  if (ispunct(ch)) {
+    begin(6, l, c);
+    putc(32);
+    putc(ch);
+    putc(10);
+    advance();
+    return 0;
+  }
+  begin(8, l, c);
+  putc(32);
+  putc(35);
+  printint(ch);
+  putc(10);
+  advance();
+  return 0;
+}
+
+func summary() {
+  var k;
+  var i;
+  var s;
+  k = 0;
+  while (k < 9) {
+    printkind(k);
+    putc(61);
+    printint(kindcount[k]);
+    if (k < 8) { putc(32); }
+    k = k + 1;
+  }
+  putc(10);
+  i = 0;
+  while (i < nids) {
+    s = idorder[i];
+    puttext(idstart[s], idlen[s]);
+    putc(32);
+    printint(idcount[s]);
+    putc(10);
+    i = i + 1;
+  }
+  return 0;
+}
+
+func main() {
+  initp10();
+  initkw();
+  cap = 12000;
+  readall();
+  pos = 0;
+  line = 1;
+  col = 1;
+  nids = 0;
+  while (pos < srclen) { lexone(); }
+  summary();
+}

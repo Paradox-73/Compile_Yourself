@@ -1,0 +1,219 @@
+// Big decimal arithmetic on pairs of non-negative integers, one per line,
+// each up to 60 digits. For every pair (a, b) prints a*b, a+b and a-b.
+// Digits are stored least significant first. Stops at end of input.
+
+array xa[64];
+var xn;
+array xb[64];
+var yn;
+array res[130];
+var rn;
+var look;
+var quot;
+
+// quot = v / 10 for 0 <= v < 100000, returns v mod 10.
+func divmod10(v) {
+  quot = 0;
+  while (v >= 10000) { v = v - 10000; quot = quot + 1000; }
+  while (v >= 1000) { v = v - 1000; quot = quot + 100; }
+  while (v >= 100) { v = v - 100; quot = quot + 10; }
+  while (v >= 10) { v = v - 10; quot = quot + 1; }
+  return v;
+}
+
+func isdigit(c) {
+  if (c >= 48) {
+    if (c <= 57) { return 1; }
+  }
+  return 0;
+}
+
+// Reads one line of digits into xa (which = 0) or xb (which = 1).
+// Returns 0 when no digits were found before end of input.
+func readbig(which) {
+  var n;
+  var i;
+  var t;
+  while (look != -1) {
+    if (isdigit(look)) {
+      n = 0;
+      while (isdigit(look)) {
+        if (which == 0) { xa[n] = look - 48; } else { xb[n] = look - 48; }
+        n = n + 1;
+        look = getc();
+      }
+      // reverse in place so index 0 is the units digit
+      i = 0;
+      while (i < n - 1 - i) {
+        if (which == 0) {
+          t = xa[i]; xa[i] = xa[n - 1 - i]; xa[n - 1 - i] = t;
+        } else {
+          t = xb[i]; xb[i] = xb[n - 1 - i]; xb[n - 1 - i] = t;
+        }
+        i = i + 1;
+      }
+      if (which == 0) { xn = n; } else { yn = n; }
+      return 1;
+    }
+    look = getc();
+  }
+  return 0;
+}
+
+func trim() {
+  while (rn > 1) {
+    if (res[rn - 1] == 0) { rn = rn - 1; } else { return 0; }
+  }
+  return 0;
+}
+
+func printres() {
+  var i;
+  i = rn - 1;
+  while (i >= 0) {
+    putc(48 + res[i]);
+    i = i - 1;
+  }
+  putc(10);
+  return 0;
+}
+
+func clearres(n) {
+  var i;
+  i = 0;
+  while (i < n) {
+    res[i] = 0;
+    i = i + 1;
+  }
+  rn = n;
+  return 0;
+}
+
+func mul() {
+  var i;
+  var j;
+  var carry;
+  var v;
+  clearres(xn + yn);
+  i = 0;
+  while (i < xn) {
+    carry = 0;
+    j = 0;
+    while (j < yn) {
+      v = res[i + j] + xa[i] * xb[j] + carry;
+      res[i + j] = divmod10(v);
+      carry = quot;
+      j = j + 1;
+    }
+    j = i + yn;
+    while (carry > 0) {
+      v = res[j] + carry;
+      res[j] = divmod10(v);
+      carry = quot;
+      j = j + 1;
+    }
+    i = i + 1;
+  }
+  trim();
+  return 0;
+}
+
+func digita(i) {
+  if (i < xn) { return xa[i]; }
+  return 0;
+}
+
+func digitb(i) {
+  if (i < yn) { return xb[i]; }
+  return 0;
+}
+
+func add() {
+  var i;
+  var n;
+  var carry;
+  var v;
+  n = xn;
+  if (yn > n) { n = yn; }
+  clearres(n + 1);
+  carry = 0;
+  i = 0;
+  while (i < n + 1) {
+    v = digita(i) + digitb(i) + carry;
+    carry = 0;
+    if (v >= 10) {
+      v = v - 10;
+      carry = 1;
+    }
+    res[i] = v;
+    i = i + 1;
+  }
+  trim();
+  return 0;
+}
+
+// -1, 0, 1 comparing a with b
+func cmpab() {
+  var i;
+  if (xn > yn) { return 1; }
+  if (xn < yn) { return -1; }
+  i = xn - 1;
+  while (i >= 0) {
+    if (xa[i] > xb[i]) { return 1; }
+    if (xa[i] < xb[i]) { return -1; }
+    i = i - 1;
+  }
+  return 0;
+}
+
+// res = big - small, sign printed first when a < b
+func sub() {
+  var i;
+  var n;
+  var borrow;
+  var v;
+  var c;
+  c = cmpab();
+  n = xn;
+  if (yn > n) { n = yn; }
+  clearres(n);
+  borrow = 0;
+  i = 0;
+  while (i < n) {
+    if (c < 0) { v = digitb(i) - digita(i) - borrow; } else { v = digita(i) - digitb(i) - borrow; }
+    borrow = 0;
+    if (v < 0) {
+      v = v + 10;
+      borrow = 1;
+    }
+    res[i] = v;
+    i = i + 1;
+  }
+  trim();
+  if (c < 0) { putc(45); }
+  return 0;
+}
+
+func main() {
+  var pairs;
+  pairs = 0;
+  look = getc();
+  while (readbig(0)) {
+    if (readbig(1)) {
+      mul();
+      printres();
+      add();
+      printres();
+      sub();
+      printres();
+      pairs = pairs + 1;
+    }
+  }
+  putc(35);
+  if (pairs >= 10) {
+    putc(49);
+    pairs = pairs - 10;
+  }
+  putc(48 + pairs);
+  putc(10);
+}

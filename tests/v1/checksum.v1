@@ -1,0 +1,265 @@
+// Checksums over every input byte (0..255 all allowed): byte count and
+// sum, a histogram, Adler-32, FNV-1a 32-bit and CRC-32 (the zlib one).
+// There is no shift or xor, so bits are taken from the top of a word by
+// testing the sign and doubling.
+
+array hist[256];
+var count;
+var bytesum;
+var adla;
+var adlb;
+var fnv;
+array crc[32];      // crc[i] is the coefficient of 2 to the i
+array poly[32];
+array bits8[8];     // bits of the current byte, bits8[0] is the top bit
+array p10[10];
+
+func initp10() {
+  var i;
+  p10[0] = 1;
+  i = 1;
+  while (i < 10) {
+    p10[i] = p10[i - 1] * 10;
+    i = i + 1;
+  }
+  return 0;
+}
+
+func printint(x) {
+  var i;
+  var d;
+  var started;
+  if (x < 0) { putc(45); } else { x = -x; }
+  started = 0;
+  i = 9;
+  while (i >= 0) {
+    d = 0;
+    while (x <= -p10[i]) {
+      x = x + p10[i];
+      d = d + 1;
+    }
+    if (d != 0) { started = 1; }
+    if (i == 0) { started = 1; }
+    if (started) { putc(48 + d); }
+    i = i - 1;
+  }
+  return 0;
+}
+
+func hexdigit(v) {
+  if (v < 10) { putc(48 + v); } else { putc(87 + v); }
+  return 0;
+}
+
+func printhex(n) {
+  var k;
+  var j;
+  var v;
+  k = 0;
+  while (k < 8) {
+    v = 0;
+    j = 0;
+    while (j < 4) {
+      v = v + v;
+      if (n < 0) { v = v + 1; }
+      n = n + n;
+      j = j + 1;
+    }
+    hexdigit(v);
+    k = k + 1;
+  }
+  return 0;
+}
+
+// Fills bits8 from a byte value 0..255.
+func splitbyte(c) {
+  var k;
+  k = 0;
+  while (k < 8) {
+    if (c >= 128) {
+      bits8[k] = 1;
+      c = c - 128;
+    } else {
+      bits8[k] = 0;
+    }
+    c = c + c;
+    k = k + 1;
+  }
+  return 0;
+}
+
+func xor8(a, b) {
+  var r;
+  var k;
+  var ba;
+  var bb;
+  r = 0;
+  k = 0;
+  while (k < 8) {
+    r = r + r;
+    ba = a >= 128;
+    bb = b >= 128;
+    if (ba) { a = a - 128; }
+    if (bb) { b = b - 128; }
+    if (ba != bb) { r = r + 1; }
+    a = a + a;
+    b = b + b;
+    k = k + 1;
+  }
+  return r;
+}
+
+func lowbyte(h) {
+  var x;
+  var v;
+  var k;
+  x = h * 16777216;
+  v = 0;
+  k = 0;
+  while (k < 8) {
+    v = v + v;
+    if (x < 0) { v = v + 1; }
+    x = x + x;
+    k = k + 1;
+  }
+  return v;
+}
+
+// Sets poly from the reflected CRC-32 polynomial 0xEDB88320 given as hex
+// digits, most significant first.
+func setnibble(pos, v) {
+  // pos is the bit index of the nibble's lowest bit
+  var k;
+  k = 3;
+  while (k >= 0) {
+    if (v >= 8) {
+      poly[pos + k] = 1;
+      v = v - 8;
+    } else {
+      poly[pos + k] = 0;
+    }
+    v = v + v;
+    k = k - 1;
+  }
+  return 0;
+}
+
+func initcrc() {
+  var i;
+  setnibble(28, 14);
+  setnibble(24, 13);
+  setnibble(20, 11);
+  setnibble(16, 8);
+  setnibble(12, 8);
+  setnibble(8, 3);
+  setnibble(4, 2);
+  setnibble(0, 0);
+  i = 0;
+  while (i < 32) {
+    crc[i] = 1;
+    i = i + 1;
+  }
+  return 0;
+}
+
+func crcbyte(c) {
+  var k;
+  var i;
+  var b;
+  splitbyte(c);
+  k = 7;
+  while (k >= 0) {
+    b = crc[0] != bits8[k];
+    i = 0;
+    while (i < 31) {
+      crc[i] = crc[i + 1];
+      i = i + 1;
+    }
+    crc[31] = 0;
+    if (b) {
+      i = 0;
+      while (i < 32) {
+        crc[i] = crc[i] != poly[i];
+        i = i + 1;
+      }
+    }
+    k = k - 1;
+  }
+  return 0;
+}
+
+func printcrc() {
+  var k;
+  var v;
+  k = 7;
+  while (k >= 0) {
+    v = 8 * (1 - crc[4 * k + 3]) + 4 * (1 - crc[4 * k + 2]) + 2 * (1 - crc[4 * k + 1]) + (1 - crc[4 * k]);
+    hexdigit(v);
+    k = k - 1;
+  }
+  return 0;
+}
+
+func feed(c) {
+  var low;
+  count = count + 1;
+  bytesum = bytesum + c;
+  hist[c] = hist[c] + 1;
+  adla = adla + c;
+  if (adla >= 65521) { adla = adla - 65521; }
+  adlb = adlb + adla;
+  if (adlb >= 65521) { adlb = adlb - 65521; }
+  low = lowbyte(fnv);
+  fnv = fnv - low + xor8(low, c);
+  fnv = fnv * 16777619;
+  crcbyte(c);
+  return 0;
+}
+
+func main() {
+  var c;
+  var i;
+  var j;
+  var distinct;
+  var best;
+  var row;
+  initp10();
+  initcrc();
+  adla = 1;
+  adlb = 0;
+  fnv = -2128831035;   // 2166136261 as a signed word
+  c = getc();
+  while (c != -1) {
+    feed(c);
+    c = getc();
+  }
+  printint(count); putc(32); printint(bytesum); putc(10);
+  distinct = 0;
+  best = 0;
+  i = 0;
+  while (i < 256) {
+    if (hist[i] > 0) { distinct = distinct + 1; }
+    if (hist[i] > hist[best]) { best = i; }
+    i = i + 1;
+  }
+  printint(distinct); putc(32); printint(best); putc(32); printint(hist[best]); putc(10);
+  row = 0;
+  i = 0;
+  while (i < 256) {
+    hexdigit(row);
+    putc(48);
+    putc(58);
+    j = 0;
+    while (j < 16) {
+      putc(32);
+      printint(hist[i + j]);
+      j = j + 1;
+    }
+    putc(10);
+    i = i + 16;
+    row = row + 1;
+  }
+  putc(97); putc(61); printhex(adlb * 65536 + adla); putc(10);
+  putc(102); putc(61); printhex(fnv); putc(10);
+  putc(99); putc(61); printcrc(); putc(10);
+}

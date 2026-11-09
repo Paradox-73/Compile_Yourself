@@ -1,0 +1,442 @@
+// A bytecode stack machine. Input layout:
+//   byte 'S', byte 'V', code length (2 bytes, little endian), code bytes,
+//   then any bytes the program itself reads with IN.
+// First prints a disassembly of the code, then runs it and prints its
+// output, then a status line. Errors stop the run with a TRAP line.
+//
+// Opcodes (operand bytes in brackets, multi-byte operands little endian):
+//   0 HALT  1 PUSH [4]  2 PUSHB [1, signed]  3 POP  4 DUP  5 SWAP  6 OVER
+//   7 ROT  8 ADD  9 SUB  10 MUL  11 NEG  12 DIV  13 MOD  14 EQ  15 LT
+//   16 GT  17 NOT  18 JMP [2]  19 JZ [2]  20 JNZ [2]  21 CALL [2]  22 RET
+//   23 LOAD [1]  24 STORE [1]  25 LOADI  26 STOREI  27 PRINT  28 EMIT
+//   29 IN  30 PICK [1]
+// Trap codes: 1 stack underflow, 2 stack overflow, 3 bad opcode,
+//   4 divide by zero, 5 bad memory address, 6 bad pc, 7 step limit,
+//   8 call stack overflow, 9 bad header.
+
+var nops;
+array oplen[31];
+array npop[31];
+array npush[31];
+array code[4096];
+var codelen;
+array stack[256];
+var sp;
+array rstack[64];
+var rsp;
+array mem[256];
+var pc;
+var steps;
+var steplimit;
+var trapped;
+var rem;
+array p10[10];
+
+func initp10() {
+  var i;
+  p10[0] = 1;
+  i = 1;
+  while (i < 10) {
+    p10[i] = p10[i - 1] * 10;
+    i = i + 1;
+  }
+  return 0;
+}
+
+func printint(x) {
+  var i;
+  var d;
+  var started;
+  if (x < 0) { putc(45); } else { x = -x; }
+  started = 0;
+  i = 9;
+  while (i >= 0) {
+    d = 0;
+    while (x <= -p10[i]) {
+      x = x + p10[i];
+      d = d + 1;
+    }
+    if (d != 0) { started = 1; }
+    if (i == 0) { started = 1; }
+    if (started) { putc(48 + d); }
+    i = i - 1;
+  }
+  return 0;
+}
+
+// zero-padded four digits, for 0 <= x <= 9999
+func print4(x) {
+  var i;
+  var d;
+  i = 3;
+  while (i >= 0) {
+    d = 0;
+    while (x >= p10[i]) {
+      x = x - p10[i];
+      d = d + 1;
+    }
+    putc(48 + d);
+    i = i - 1;
+  }
+  return 0;
+}
+
+func setop(op, len, pops, pushes) {
+  oplen[op] = len;
+  npop[op] = pops;
+  npush[op] = pushes;
+  return 0;
+}
+
+func initops() {
+  nops = 31;
+  setop(0, 0, 0, 0);
+  setop(1, 4, 0, 1);
+  setop(2, 1, 0, 1);
+  setop(3, 0, 1, 0);
+  setop(4, 0, 1, 2);
+  setop(5, 0, 2, 2);
+  setop(6, 0, 2, 3);
+  setop(7, 0, 3, 3);
+  setop(8, 0, 2, 1);
+  setop(9, 0, 2, 1);
+  setop(10, 0, 2, 1);
+  setop(11, 0, 1, 1);
+  setop(12, 0, 2, 1);
+  setop(13, 0, 2, 1);
+  setop(14, 0, 2, 1);
+  setop(15, 0, 2, 1);
+  setop(16, 0, 2, 1);
+  setop(17, 0, 1, 1);
+  setop(18, 2, 0, 0);
+  setop(19, 2, 1, 0);
+  setop(20, 2, 1, 0);
+  setop(21, 2, 0, 0);
+  setop(22, 0, 0, 0);
+  setop(23, 1, 0, 1);
+  setop(24, 1, 1, 0);
+  setop(25, 0, 1, 1);
+  setop(26, 0, 2, 0);
+  setop(27, 0, 1, 0);
+  setop(28, 0, 1, 0);
+  setop(29, 0, 0, 1);
+  setop(30, 1, 0, 1);
+  return 0;
+}
+
+func put3(a, b, c) { putc(a); putc(b); putc(c); return 0; }
+func put4(a, b, c, d) { putc(a); putc(b); putc(c); putc(d); return 0; }
+
+func opname(op) {
+  if (op == 0) { put4(72, 65, 76, 84); }
+  if (op == 1) { put4(80, 85, 83, 72); }
+  if (op == 2) { put4(80, 85, 83, 72); putc(66); }
+  if (op == 3) { put3(80, 79, 80); }
+  if (op == 4) { put3(68, 85, 80); }
+  if (op == 5) { put4(83, 87, 65, 80); }
+  if (op == 6) { put4(79, 86, 69, 82); }
+  if (op == 7) { put3(82, 79, 84); }
+  if (op == 8) { put3(65, 68, 68); }
+  if (op == 9) { put3(83, 85, 66); }
+  if (op == 10) { put3(77, 85, 76); }
+  if (op == 11) { put3(78, 69, 71); }
+  if (op == 12) { put3(68, 73, 86); }
+  if (op == 13) { put3(77, 79, 68); }
+  if (op == 14) { putc(69); putc(81); }
+  if (op == 15) { putc(76); putc(84); }
+  if (op == 16) { putc(71); putc(84); }
+  if (op == 17) { put3(78, 79, 84); }
+  if (op == 18) { put3(74, 77, 80); }
+  if (op == 19) { putc(74); putc(90); }
+  if (op == 20) { put3(74, 78, 90); }
+  if (op == 21) { put4(67, 65, 76, 76); }
+  if (op == 22) { put3(82, 69, 84); }
+  if (op == 23) { put4(76, 79, 65, 68); }
+  if (op == 24) { put4(83, 84, 79, 82); putc(69); }
+  if (op == 25) { put4(76, 79, 65, 68); putc(73); }
+  if (op == 26) { put4(83, 84, 79, 82); putc(69); putc(73); }
+  if (op == 27) { put4(80, 82, 73, 78); putc(84); }
+  if (op == 28) { put4(69, 77, 73, 84); }
+  if (op == 29) { putc(73); putc(78); }
+  if (op == 30) { put4(80, 73, 67, 75); }
+  return 0;
+}
+
+// operand decoding; p is the address of the first operand byte
+func imm32(p) {
+  return code[p] + code[p + 1] * 256 + code[p + 2] * 65536 + code[p + 3] * 16777216;
+}
+
+func imm8s(p) {
+  if (code[p] >= 128) { return code[p] - 256; }
+  return code[p];
+}
+
+func imm16(p) {
+  return code[p] + code[p + 1] * 256;
+}
+
+func operand(op, p) {
+  if (op == 1) { return imm32(p); }
+  if (op == 2) { return imm8s(p); }
+  if (oplen[op] == 2) { return imm16(p); }
+  return code[p];
+}
+
+func disasm() {
+  var p;
+  var op;
+  p = 0;
+  while (p < codelen) {
+    op = code[p];
+    print4(p);
+    putc(58);
+    putc(32);
+    if (op >= nops) {
+      putc(68); putc(66); putc(32); printint(op);
+      p = p + 1;
+    } else {
+      opname(op);
+      if (oplen[op] > 0) {
+        putc(32);
+        if (p + oplen[op] < codelen) {
+          printint(operand(op, p + 1));
+        } else {
+          putc(63);
+        }
+      }
+      p = p + 1 + oplen[op];
+    }
+    putc(10);
+  }
+  return 0;
+}
+
+func trap(c) {
+  putc(10);
+  put4(84, 82, 65, 80);
+  putc(32);
+  printint(c);
+  putc(32);
+  putc(97); putc(116); putc(32);
+  printint(pc);
+  putc(10);
+  trapped = 1;
+  return 0;
+}
+
+func neg(x) { return -x; }
+
+// a / b for a >= 0, b > 0 by shifted subtraction; remainder in rem
+func udiv(a, b) {
+  var q;
+  var t;
+  var m;
+  var go;
+  q = 0;
+  while (a >= b) {
+    t = b;
+    m = 1;
+    go = 1;
+    while (go) {
+      if (t < 1073741824) {
+        if (t + t <= a) {
+          t = t + t;
+          m = m + m;
+        } else {
+          go = 0;
+        }
+      } else {
+        go = 0;
+      }
+    }
+    a = a - t;
+    q = q + m;
+  }
+  rem = a;
+  return q;
+}
+
+// truncating division like C; remainder takes the sign of a
+func sdiv(a, b) {
+  var q;
+  var na;
+  var nb;
+  na = a < 0;
+  nb = b < 0;
+  if (na) { a = -a; }
+  if (nb) { b = -b; }
+  q = udiv(a, b);
+  if (na) { rem = -rem; }
+  if (na != nb) { q = -q; }
+  return q;
+}
+
+func push(v) {
+  stack[sp] = v;
+  sp = sp + 1;
+  return 0;
+}
+
+func pop() {
+  sp = sp - 1;
+  return stack[sp];
+}
+
+// Runs one instruction at pc. Checks happen before any state changes.
+func step() {
+  var op;
+  var a;
+  var b;
+  var c;
+  var arg;
+  var next;
+  op = code[pc];
+  if (op >= nops) { trap(3); return 0; }
+  if (pc + oplen[op] >= codelen) { trap(6); return 0; }
+  if (sp < npop[op]) { trap(1); return 0; }
+  if (sp - npop[op] + npush[op] > 256) { trap(2); return 0; }
+  arg = 0;
+  if (oplen[op] > 0) { arg = operand(op, pc + 1); }
+  next = pc + 1 + oplen[op];
+  if (op == 0) { return 1; }
+  if (op == 1) { push(arg); }
+  if (op == 2) { push(arg); }
+  if (op == 3) { a = pop(); }
+  if (op == 4) { a = pop(); push(a); push(a); }
+  if (op == 5) { b = pop(); a = pop(); push(b); push(a); }
+  if (op == 6) { b = pop(); a = pop(); push(a); push(b); push(a); }
+  if (op == 7) { c = pop(); b = pop(); a = pop(); push(b); push(c); push(a); }
+  if (op == 8) { b = pop(); a = pop(); push(a + b); }
+  if (op == 9) { b = pop(); a = pop(); push(a - b); }
+  if (op == 10) { b = pop(); a = pop(); push(a * b); }
+  if (op == 11) { a = pop(); push(neg(a)); }
+  if (op == 12) {
+    if (stack[sp - 1] == 0) { trap(4); return 0; }
+    b = pop(); a = pop(); push(sdiv(a, b));
+  }
+  if (op == 13) {
+    if (stack[sp - 1] == 0) { trap(4); return 0; }
+    b = pop(); a = pop(); c = sdiv(a, b); push(rem);
+  }
+  if (op == 14) { b = pop(); a = pop(); push(a == b); }
+  if (op == 15) { b = pop(); a = pop(); push(a < b); }
+  if (op == 16) { b = pop(); a = pop(); push(a > b); }
+  if (op == 17) { a = pop(); push(a == 0); }
+  if (op == 18) { next = arg; }
+  if (op == 19) {
+    a = pop();
+    if (a == 0) { next = arg; }
+  }
+  if (op == 20) {
+    a = pop();
+    if (a != 0) { next = arg; }
+  }
+  if (op == 21) {
+    if (rsp >= 64) { trap(8); return 0; }
+    rstack[rsp] = next;
+    rsp = rsp + 1;
+    next = arg;
+  }
+  if (op == 22) {
+    if (rsp == 0) { trap(1); return 0; }
+    rsp = rsp - 1;
+    next = rstack[rsp];
+  }
+  if (op == 23) { push(mem[arg]); }
+  if (op == 24) { mem[arg] = pop(); }
+  if (op == 25) {
+    a = stack[sp - 1];
+    if (a < 0) { trap(5); return 0; }
+    if (a >= 256) { trap(5); return 0; }
+    a = pop();
+    push(mem[a]);
+  }
+  if (op == 26) {
+    a = stack[sp - 1];
+    if (a < 0) { trap(5); return 0; }
+    if (a >= 256) { trap(5); return 0; }
+    a = pop();
+    b = pop();
+    mem[a] = b;
+  }
+  if (op == 27) { a = pop(); printint(a); }
+  if (op == 28) { a = pop(); putc(a); }
+  if (op == 29) { push(getc()); }
+  if (op == 30) {
+    if (arg >= sp) { trap(1); return 0; }
+    push(stack[sp - 1 - arg]);
+  }
+  pc = next;
+  steps = steps + 1;
+  return 0;
+}
+
+func run() {
+  var done;
+  done = 0;
+  while (done == 0) {
+    if (steps >= steplimit) {
+      trap(7);
+    } else {
+      if (pc < 0) {
+        trap(6);
+      } else {
+        if (pc >= codelen) {
+          trap(6);
+        } else {
+          done = step();
+        }
+      }
+    }
+    if (trapped) { done = 1; }
+  }
+  return 0;
+}
+
+func loadcode() {
+  var a;
+  var b;
+  var i;
+  var c;
+  a = getc();
+  b = getc();
+  if (a != 83) { return 0; }
+  if (b != 86) { return 0; }
+  a = getc();
+  b = getc();
+  if (b < 0) { return 0; }
+  codelen = a + 256 * b;
+  if (codelen > 4096) { return 0; }
+  i = 0;
+  while (i < codelen) {
+    c = getc();
+    if (c < 0) { return 0; }
+    code[i] = c;
+    i = i + 1;
+  }
+  return 1;
+}
+
+func main() {
+  initp10();
+  initops();
+  steplimit = 30000;
+  sp = 0;
+  rsp = 0;
+  pc = 0;
+  steps = 0;
+  trapped = 0;
+  if (loadcode()) {
+    disasm();
+    putc(45); putc(45); putc(45); putc(10);
+    run();
+  } else {
+    trap(9);
+  }
+  putc(10);
+  put4(115, 116, 101, 112); putc(115); putc(61); printint(steps);
+  putc(32); putc(115); putc(112); putc(61); printint(sp);
+  putc(32); putc(114); putc(115); putc(112); putc(61); printint(rsp);
+  putc(10);
+}

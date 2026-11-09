@@ -781,6 +781,14 @@ class Gen(object):
         self.clr(self.MR)
         self.clr(self.MC)
         self.emit(self.MC, self.const(32))        # MC = -32, counts up to 0
+        # leading zero bits of MB only shift it: 6 instructions per bit instead of 10
+        lz, ret = self.new_label(), self.new_label()
+        self.place(lz)
+        self.jlt(self.MB, top)
+        self.add(self.MB, self.MB)
+        self.emit(self.MC, self.M1)
+        self.jlt(self.MC, lz)
+        self.jmp(ret)
         self.place(top)
         self.add(self.MR, self.MR)
         self.emit(self.MB, self.Z, (LAB, skip))   # if MB < 0 add
@@ -791,6 +799,7 @@ class Gen(object):
         self.add(self.MB, self.MB)
         self.emit(self.MC, self.M1)               # MC += 1
         self.emit(self.MC, self.Z, (LAB, top))    # loop while MC < 0
+        self.place(ret)
         tgt_next = (ABS, self.pc + 3 * 2 + 2)
         self.clr(tgt_next)
         self.emit(tgt_next, self.MNRET)

@@ -1,0 +1,26 @@
+// sample input for the lexer
+struct node { int key; struct node *next; };
+int count = 0x1F + 0XfF - 017 + 0x;   /* hex, decimal, 0 then x */
+char *msg = "hello, \"world\"\n";
+char c1 = 'a', c2 = '\n', c3 = '\'', c4 = '\\', c5 = '\0';
+func fib(n) {
+    if (n <= 1) { return n; }
+    return fib(n - 1) + fib(n - 2);
+}
+void loop(void) {
+    for (i = 0; i < 10; i++) { total += i * 2; if (i == 7) break; else continue; }
+    while (p != 0 && q || !r) { p = p->next; x <<= 1; y = y >> 2; --z; }
+    a = b ? c : d; e = ~f ^ g | h & k % m / n;
+}
+/* a comment
+   over two lines */ int after_comment = 42;
+var _under_score9; array arr[100];
+x = "unterminated string
+y = 'ab';  z = '';  w = ''';
+@ $ ` #define
+very_long_identifier_name_that_goes_on = 123456789;
+fib fib fib count count x x x x
+1234abc 0x10X5 99/*inline*/88 // trailing comment
+È
+	last = "tail";
+end /* never closed

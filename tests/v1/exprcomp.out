@@ -1,0 +1,114 @@
+S1: a = (1 + (2 * 3))
+  fold: 7
+  code: push 7 store a [2 ops, depth 1]
+  a = 7
+S2: b = ((1 + 2) * 3)
+  fold: 9
+  code: push 9 store b [2 ops, depth 1]
+  b = 9
+S3: print ((a - b) - 1)
+  fold: ((a - b) - 1)
+  code: load a load b sub push 1 sub print [6 ops, depth 2]
+  > -3
+S4: c = ((-a) * (-b))
+  fold: ((-a) * (-b))
+  code: load a neg load b neg mul store c [6 ops, depth 2]
+  c = 63
+S5: d = ((-(-5)) + x0)
+  fold: (5 + x0)
+  code: push 5 load x0 add store d [4 ops, depth 2]
+  error: undefined x0
+S6: x0 = 0
+  fold: 0
+  code: push 0 store x0 [2 ops, depth 1]
+  x0 = 0
+S7: d = ((-(-5)) + x0)
+  fold: (5 + x0)
+  code: push 5 load x0 add store d [4 ops, depth 2]
+  d = 5
+S8: e = ((a < b) == 1)
+  fold: ((a < b) == 1)
+  code: load a load b lt push 1 eq store e [6 ops, depth 2]
+  e = 1
+S9: f = (((2 * 3) < 7) == (1 < 2))
+  fold: 1
+  code: push 1 store f [2 ops, depth 1]
+  f = 1
+S10: print (((a + 0) * 1) + (0 * (b - 0)))
+  fold: (a + (0 * b))
+  code: load a push 0 load b mul add print [6 ops, depth 3]
+  > 7
+S11: print ((1 * (c + 0)) - 0)
+  fold: c
+  code: load c print [2 ops, depth 1]
+  > 63
+S12: g = (((65536 * 65536) + 2147483647) + 1)
+  fold: -2147483648
+  code: push -2147483648 store g [2 ops, depth 1]
+  g = -2147483648
+S13: h = ((0 - 2147483647) - 1)
+  fold: -2147483648
+  code: push -2147483648 store h [2 ops, depth 1]
+  h = -2147483648
+S14: print (h - 1)
+  fold: (h - 1)
+  code: load h push 1 sub print [4 ops, depth 2]
+  > 2147483647
+S15: print (-h)
+  fold: (-h)
+  code: load h neg print [3 ops, depth 1]
+  > -2147483648
+S16: big = (123456 * 654321)
+  fold: -824525248
+  code: push -824525248 store big [2 ops, depth 1]
+  big = -824525248
+S17: print (big < 0)
+  fold: (big < 0)
+  code: load big push 0 lt print [4 ops, depth 2]
+  > 1
+S18: i = ((1 + 2) * 3)
+  fold: 9
+  code: push 9 store i [2 ops, depth 1]
+  i = 9
+S19: j = ((((((a * b) * c) * d) * e) * f) * i)
+  fold: ((((((a * b) * c) * d) * e) * f) * i)
+  code: load a load b mul load c mul load d mul load e mul load f mul load i mul store j [14 ops, depth 2]
+  j = 178605
+S20: print (j == j)
+  fold: (j == j)
+  code: load j load j eq print [4 ops, depth 2]
+  > 1
+S21: syntax error at 22:9
+S22: syntax error at 23:11
+S23: syntax error at 24:1
+S24: syntax error at 25:1
+S25: syntax error at 26:9
+S26: syntax error at 27:7
+S27: print n
+  fold: n
+  code: load n print [2 ops, depth 1]
+  error: undefined n
+S28: syntax error at 29:1
+S29: z = ((((((a + (b * c)) - (d * e)) + f) - (g * h)) + i) - j)
+  fold: ((((((a + (b * c)) - (d * e)) + f) - (g * h)) + i) - j)
+  code: load a load b load c mul add load d load e mul sub load f add load g load h mul sub load i add load j sub store z [20 ops, depth 3]
+  z = -178026
+S30: print ((z * 0) + q)
+  fold: ((z * 0) + q)
+  code: load z push 0 mul load q add print [6 ops, depth 2]
+  error: undefined q
+S31: y = (-(-(-a)))
+  fold: (-a)
+  code: load a neg store y [3 ops, depth 1]
+  y = -7
+S32: print (y + (-(-7)))
+  fold: (y + 7)
+  code: load y push 7 add print [4 ops, depth 2]
+  > 0
+S33: w = (((((10 - 2) - 3) - 4) + ((1 * 2) * 3)) - (-1))
+  fold: 8
+  code: push 8 store w [2 ops, depth 1]
+  w = 8
+S34: syntax error at 36:1
+vars: a=7 b=9 c=63 d=5 x0=0 e=1 f=1 g=-2147483648 h=-2147483648 big=-824525248 i=9 j=178605 z=-178026 y=-7 w=8
+34 11 300 21
