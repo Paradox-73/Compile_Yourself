@@ -1,0 +1,130 @@
+# Programs tools/v1ref.py must reject. Each case starts with "### <text the error must contain>".
+### expected '{'
+func main() { if (1) { putc(65); } else if (0) { putc(66); } }
+### expected '{'
+func main() { if (1) putc(65); }
+### expected '{'
+func main() { var i; i = 0; while (i < 3) i = i + 1; }
+### expected a statement
+func main() { for (;;) { } }
+### is not declared
+func main() { var i; i = 0; while (1) { break; } }
+### return needs a value
+func main() { return; }
+### expected a statement
+func main() { ; }
+### expected '=', '[' or '('
+func main() { var x; x = 1; x; }
+### expected ';'
+func main() { putc(65) + 1; }
+### expected a statement
+func main() { { putc(65); } }
+### longer than 24
+var abcdefghijklmnopqrstuvwxy;
+func main() { }
+### expected 'name'
+var while;
+func main() { }
+### expected 'name'
+func main() { var return; }
+### larger than 2147483647
+func main() { putc(2147483648); }
+### larger than 2147483647
+func main() { putc(-2147483648); }
+### leading zero
+func main() { putc(065); }
+### bad number
+func main() { putc(12ab); }
+### not defined before this call
+func main() { g(); }
+func g() { }
+### takes 1 argument
+func f(x) { return x; }
+func main() { putc(f(1, 2)); }
+### takes 0 argument
+func main() { putc(getc(1)); }
+### no function main
+func f() { }
+### main must take no parameters
+func main(x) { }
+### more than 8 parameters
+func f(a, b, c, d, e, g, h, i, j) { return 0; }
+func main() { }
+### declared twice in the same block
+func main() { var x; var x; x = 1; }
+### declared twice in the same block
+func f(x) { var x; x = 1; return x; }
+func main() { putc(f(1)); }
+### parameter 'a' declared twice
+func f(a, a) { return a; }
+func main() { }
+### already declared at top level
+var g;
+array g[3];
+func main() { }
+### already declared at top level
+func f() { }
+var f;
+func main() { }
+### is a function name
+func f() { }
+func main() { var f; f = 1; }
+### built in
+func putc(x) { return 0; }
+func main() { }
+### built in
+var getc;
+func main() { }
+### is not declared
+func main() { x = 1; }
+### is not declared
+func main() { g = 1; }
+var g;
+### is not declared
+func main() { if (1) { var t; t = 1; } t = 2; }
+### is not declared
+func main() { x = 1; var x; }
+### is a array, not a var
+array a[3];
+func main() { putc(a); }
+### is a local variable, not an array
+array a[3];
+func main() { var a; a = 0; a[0] = 1; }
+### array size must be positive
+array a[0];
+func main() { }
+### do not fit
+array a[1048577];
+func main() { }
+### unexpected character '/'
+func main() { putc(4 / 2); }
+### unexpected character '!'
+func main() { if (!0) { } }
+### unexpected character '&'
+func main() { if (1 && 1) { } }
+### expected an expression
+func main() { putc(+1); }
+### expected 'name'
+var a, b;
+func main() { }
+### expected ';'
+func main() { var x = 1; }
+### expected a declaration
+putc(65);
+### 'else' must be followed by a block
+func main() { if (1) { } else putc(1); }
+### read before it was assigned
+func main() { var x; putc(x); }
+### read before it was assigned
+func main() { var i; var s; i = 0; while (i < 2) { var t; if (i == 0) { t = 5; } putc(t); i = i + 1; } }
+### index 5 outside a[5]
+array a[5];
+func main() { a[5] = 1; }
+### index -1 outside a[5]
+array a[5];
+func main() { putc(a[0 - 1]); }
+### recursion deeper than 1000
+func f(n) { if (n == 0) { return 0; } return f(n - 1); }
+func main() { putc(f(1000)); }
+### operation budget exceeded
+func main() { while (1) { } }

@@ -222,4 +222,8 @@ The brief leaves a few points open. Where it does, we chose the C-like reading a
 
 ## Team
 
-Team Claude laggye, Synergy '26 Low Level Hackathon, IIIT Bangalore.
+Team Claude laggye, Synergy '26 Low Level Hackathon, IIIT Bangalore:
+
+- Kanav Bhardwaj
+- Bhavya Jain
+- Aaryan Antala

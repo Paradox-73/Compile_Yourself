@@ -1,6 +1,7 @@
 tools/vm
 tools/vm.exe
 *.exe
+!tier1/*.txt
 __pycache__/
 *.pyc
 tests/*.txt

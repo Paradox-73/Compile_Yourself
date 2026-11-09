@@ -862,7 +862,10 @@ class Gen(object):
         for n, a in enumerate(args):
             later_effects = any(self.has_effects(x) for x in args[n + 1:])
             v = self.gen_expr(a)
-            if later_effects and v[0] == DAT and v not in self.fr[self.f.idx]['temps']:
+            mine = v[0] == DAT and v not in self.fr[self.f.idx]['temps']
+            # a self-call overwrites our own parameters, so a variable argument must be
+            # copied out first; so must one that a later argument's call could change
+            if mine and (later_effects or fi == self.f.idx):
                 t = self.temp()
                 self.mov(t, v)
                 v = t

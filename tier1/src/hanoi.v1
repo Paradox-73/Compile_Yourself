@@ -1,0 +1,23 @@
+// Towers of Hanoi: move n disks from peg A to peg C using B, printing each move.
+func move(n, from, to, via) {
+    if (n > 0) {
+        move(n - 1, from, via, to);
+        putc(from);
+        putc(to);
+        putc(10);
+        move(n - 1, via, to, from);
+    }
+    return 0;
+}
+
+func main() {
+    var n;
+    var c;
+    n = 0;
+    c = getc();
+    while (c >= 48) {
+        n = n * 10 + c - 48;
+        c = getc();
+    }
+    move(n, 65, 67, 66);
+}

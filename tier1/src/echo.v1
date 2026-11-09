@@ -1,0 +1,9 @@
+// Copy the input to the output, byte for byte.
+func main() {
+    var c;
+    c = getc();
+    while (c >= 0) {
+        putc(c);
+        c = getc();
+    }
+}

@@ -1,0 +1,18 @@
+// Print the input (up to 1000 bytes) in reverse order.
+array buf[1000];
+
+func main() {
+    var n;
+    var c;
+    n = 0;
+    c = getc();
+    while (c >= 0) {
+        buf[n] = c;
+        n = n + 1;
+        c = getc();
+    }
+    while (n > 0) {
+        n = n - 1;
+        putc(buf[n]);
+    }
+}
