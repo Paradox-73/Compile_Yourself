@@ -45,7 +45,7 @@ This repository is the entry of team Claude laggye for problem COMP01, "Compile 
 |---|---|---|
 | 1 | Four machine programs: `echo`, `reverse`, `bigmul`, `hanoi` | done: hanoi n=8 in 88k steps, two 40-digit numbers in 0.69M steps |
 | 2 | `tier2/v1c.py`: v1 to machine code, in Python | 80 hand-written programs and 1,300+ random ones match the reference interpreter byte for byte; heaviest test 33M of the 100M steps |
-| 3 | `tier3/tier3.v1`: the same compiler written in v1 | done: compiles itself in 132M steps (limit 10^10); C1, C2 and C3 are byte-identical |
+| 3 | `tier3/tier3.v1`: the same compiler written in v1 | done: compiles itself in 147M steps (limit 10^10); C1, C2 and C3 are byte-identical |
 
 This table is updated as each tier lands.
 
@@ -204,7 +204,7 @@ The four programs are written in v1 (`tier1/src/`) and compiled with `v1c.py`. T
 
 ```
 python3 tier2/v1c.py < tier3/tier3.v1 > C1.txt       # Step 1
-tools/vm C1.txt 10000000000 < tier3/tier3.v1 > C2.txt  # Step 3: 132,130,819 steps
+tools/vm C1.txt 10000000000 < tier3/tier3.v1 > C2.txt  # Step 3: 147,182,329 steps
 tools/vm C2.txt 10000000000 < tier3/tier3.v1 > C3.txt
 cmp C1.txt C2.txt && cmp C2.txt C3.txt                 # all three identical
 ```
@@ -223,7 +223,7 @@ v1 has no mutual recursion, so every recursive part of the compiler is a single 
 | `v1c.py` on the corpus and random programs | 80 corpus + 1,300 random: all match the reference interpreter |
 | Self-compiled compiler (C1) on the same | 80 corpus + 1,300 random: all match |
 | C1's output vs `v1c.py`'s output | byte-identical on every corpus program |
-| Bootstrap on the organisers' `VM_tier3` (Ubuntu 24.04) | C1 = C2 = C3, 132M steps |
+| Bootstrap on the organisers' `VM_tier3` (Ubuntu 24.04) | C1 = C2 = C3, 147M steps |
 | 59.8 KB input to C1 | 214M steps (limit 10^10), output identical to `v1c.py` |
 | Tier 1 programs on the organisers' `VM_tier1and2` | all correct |
 

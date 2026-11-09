@@ -289,7 +289,8 @@ def generate(seed):
         inp = bytes(r.randrange(256) for _ in range(r.choice([0, 1, 5, 20, 40])))
         try:
             out, _ = v1ref.run(src, inp, MAX_OPS)
-        except v1ref.BudgetExceeded:
+        except (v1ref.BudgetExceeded, v1ref.V1Error):
+            # the generator can reuse a name for a function and a variable; draw again
             continue
         return src, inp, out
     raise RuntimeError(f"seed {seed}: no program under {MAX_OPS} operations in 100 attempts")

@@ -1,0 +1,4 @@
+func bump() { count = count + 1; tab[count] = count * 3; return count; }
+func main() { bump(); bump(); putc(48 + count); putc(48 + tab[2]); putc(10); }
+var count;
+array tab[10];

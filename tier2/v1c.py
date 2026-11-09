@@ -154,14 +154,42 @@ class Parser(object):
         self.cur = None
         self.scopes = []
 
+    def prescan(self):
+        """Register every top-level var and array first, so a function may use a global
+        declared further down the file."""
+        lx = Lexer(self.lx.s)
+        depth = 0
+        while lx.kind != T_EOF:
+            if depth == 0 and lx.is_('var'):
+                lx.next()
+                if lx.kind == T_ID:
+                    self.declare_global(lx.text)
+            elif depth == 0 and lx.is_('array'):
+                lx.next()
+                if lx.kind == T_ID:
+                    name = lx.text
+                    lx.next()
+                    if lx.is_('['):
+                        lx.next()
+                        if lx.kind == T_NUM and lx.val > 0:
+                            if name in self.arrays or name in self.globals:
+                                lx.err('%s declared twice' % name)
+                            self.arrays[name] = (len(self.array_sizes), lx.val)
+                            self.array_sizes.append(lx.val)
+            elif lx.is_('{'):
+                depth += 1
+            elif lx.is_('}'):
+                depth -= 1
+            lx.next()
+
     def parse(self):
         lx = self.lx
+        self.prescan()
         while lx.kind != T_EOF:
             if lx.is_('var'):
                 lx.next()
-                name = lx.ident()
+                lx.ident()
                 lx.expect(';')
-                self.declare_global(name)
             elif lx.is_('array'):
                 lx.next()
                 name = lx.ident()
@@ -172,10 +200,6 @@ class Parser(object):
                 lx.next()
                 lx.expect(']')
                 lx.expect(';')
-                if name in self.arrays or name in self.globals:
-                    lx.err('%s declared twice' % name)
-                self.arrays[name] = (len(self.array_sizes), size)
-                self.array_sizes.append(size)
             elif lx.is_('func'):
                 self.parse_func()
             else:
@@ -834,8 +858,25 @@ class Gen(object):
             self.jmp(lf)
         self.free_temps(mark)
 
+    def nonneg_const(self, x):
+        return x[0] == CON and not isinstance(self.consts[x[1]], tuple) and self.consts[x[1]] >= 0
+
     def less(self, a, b, lt, lf):
         """True signed a < b, even when a - b overflows."""
+        if self.nonneg_const(b):            # a < 0 <= b, else both >= 0: no overflow
+            self.jlt(a, lt)
+            self.mov(self.T1, a)
+            self.emit(self.T1, b)
+            self.jlt(self.T1, lt)
+            self.jmp(lf)
+            return
+        if self.nonneg_const(a):            # b < 0 <= a, else both >= 0
+            self.jlt(b, lf)
+            self.mov(self.T1, a)
+            self.emit(self.T1, b)
+            self.jlt(self.T1, lt)
+            self.jmp(lf)
+            return
         aneg, diff = self.new_label(), self.new_label()
         self.jlt(a, aneg)
         self.jlt(b, lf)          # a >= 0 > b
