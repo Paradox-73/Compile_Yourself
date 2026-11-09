@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" role="img" aria-label="Compile Yourself. A v1 compiler for a machine with one instruction, up to a compiler that compiles itself. Synergy '26 Low Level Hackathon, IIIT Bangalore. Team Claude laggye.">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1016"/><stop offset="1" stop-color="#14202c"/>
+    </linearGradient>
+    <linearGradient id="ac" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4fd1e0"/><stop offset="1" stop-color="#f5a524"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="300" fill="url(#bg)"/>
+  <g font-family="Consolas, 'Courier New', monospace" fill="#4fd1e0" opacity="0.10" font-size="18">
+    <text x="20" y="40">1048575 6 3 7 8 -1 -65 -1 0  mem[a] -= mem[b]  if &lt; 0 goto c</text>
+    <text x="80" y="275">Z y · x Z · Z Z   M1 Z L   x Z L   subleq subleq subleq</text>
+  </g>
+  <text x="60" y="118" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="62" font-weight="700" fill="#e8f1f8">Compile Yourself</text>
+  <rect x="60" y="134" width="420" height="5" rx="2" fill="url(#ac)"/>
+  <text x="60" y="180" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="24" fill="#b8c7d4">One instruction. A compiler. A compiler that compiles itself.</text>
+  <text x="60" y="225" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="18" fill="#7f93a5">Synergy '26 Low Level Hackathon · IIIT Bangalore · Compilers track · Team Claude laggye</text>
+  <g transform="translate(860,70)" font-family="Consolas, 'Courier New', monospace" font-size="17">
+    <rect width="290" height="160" rx="12" fill="#0f1822" stroke="#2a3b4c"/>
+    <text x="18" y="34" fill="#f5a524">Tier 1</text><text x="100" y="34" fill="#b8c7d4">machine code</text>
+    <text x="18" y="74" fill="#4fd1e0">Tier 2</text><text x="100" y="74" fill="#b8c7d4">v1 → machine</text>
+    <text x="18" y="114" fill="#1baf7a">Tier 3</text><text x="100" y="114" fill="#b8c7d4">v1 in v1</text>
+    <text x="18" y="146" fill="#7f93a5">C2 == C3</text>
+  </g>
+</svg>
