@@ -88,7 +88,6 @@ VM_STATS=1 tools/vm ex1.txt < /dev/null # also prints the step count on stderr
 | `tools/vm.c` | Local copy of the machine, for fast tests |
 | `tests/` | v1 test programs with inputs and expected outputs |
 | `docs/design_log.md` | What we tried, what failed, and why |
-| `docs/demo_guide.md` | How we run and explain the demo |
 
 ## The machine
 
