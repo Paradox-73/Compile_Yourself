@@ -13,19 +13,19 @@ var tl;
 var tp;
 
 // tree: kind, three fields, next in list
-array nk[50000];
-array n1[50000];
-array n2[50000];
-array n3[50000];
-array nx[50000];
+array nk[60000];
+array n1[60000];
+array n2[60000];
+array n3[60000];
+array nx[60000];
 var nn;
 
-array gs[3000];
-array gl[3000];
+array gs[8000];
+array gl[8000];
 var ng;
-array ars[600];
-array arl[600];
-array arsz[600];
+array ars[6000];
+array arl[6000];
+array arsz[6000];
 var na;
 array fs[202];
 array fl[202];
@@ -35,10 +35,10 @@ array fbody[202];
 var nf;
 var cf;
 
-array scs[3000];
-array scl[3000];
-array sci[3000];
-array scd[3000];
+array scs[10000];
+array scl[10000];
+array sci[10000];
+array scd[10000];
 var nsc;
 var depth;
 var pends;
@@ -56,8 +56,8 @@ var ndata;
 var codesize;
 var database;
 var stackbase;
-array gcell[3000];
-array abase[600];
+array gcell[8000];
+array abase[6000];
 array fnret[202];
 array fentry[202];
 array fexit[202];
@@ -209,23 +209,32 @@ func expect(c) {
     return 0;
 }
 
-// -1 when the name is not a local; otherwise its local index
-func findlocal(s, l) {
-    var i;
-    i = nsc - 1;
-    while (i >= 0) {
-        if (same(scs[i], scl[i], s, l)) { return sci[i]; }
-        i = i - 1;
-    }
-    return 0 - 1;
-}
-
 func findglobal(s, l) {
     var i;
     i = 0;
     while (i < ng) {
         if (same(gs[i], gl[i], s, l)) { return i; }
         i = i + 1;
+    }
+    return 0 - 1;
+}
+
+// -1 when the name is not a local; otherwise its local index.
+// A local whose block has closed (scd = -1) is used only when no live local or global matches.
+func findlocal(s, l) {
+    var i;
+    i = nsc - 1;
+    while (i >= 0) {
+        if (scd[i] >= 0) {
+            if (same(scs[i], scl[i], s, l)) { return sci[i]; }
+        }
+        i = i - 1;
+    }
+    if (findglobal(s, l) >= 0) { return 0 - 1; }
+    i = nsc - 1;
+    while (i >= 0) {
+        if (same(scs[i], scl[i], s, l)) { return sci[i]; }
+        i = i - 1;
     }
     return 0 - 1;
 }
@@ -449,7 +458,7 @@ func pstmts() {
         }
     }
     lex();
-    nsc = mark;
+    while (mark < nsc) { scd[mark] = 0 - 1; mark = mark + 1; }
     depth = depth - 1;
     return head;
 }

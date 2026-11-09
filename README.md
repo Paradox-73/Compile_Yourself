@@ -45,7 +45,7 @@ This repository is the entry of team Claude laggye for problem COMP01, "Compile 
 |---|---|---|
 | 1 | Four machine programs: `echo`, `reverse`, `bigmul`, `hanoi` | done: hanoi n=8 in 88k steps, two 40-digit numbers in 0.69M steps |
 | 2 | `tier2/v1c.py`: v1 to machine code, in Python | 80 hand-written programs and 1,300+ random ones match the reference interpreter byte for byte; heaviest test 33M of the 100M steps |
-| 3 | `tier3/tier3.v1`: the same compiler written in v1 | done: compiles itself in 147M steps (limit 10^10); C1, C2 and C3 are byte-identical |
+| 3 | `tier3/tier3.v1`: the same compiler written in v1 | done: compiles itself in 151M steps (limit 10^10); C1, C2 and C3 are byte-identical |
 
 This table is updated as each tier lands.
 
@@ -204,7 +204,7 @@ The four programs are written in v1 (`tier1/src/`) and compiled with `v1c.py`. T
 
 ```
 python3 tier2/v1c.py < tier3/tier3.v1 > C1.txt       # Step 1
-tools/vm C1.txt 10000000000 < tier3/tier3.v1 > C2.txt  # Step 3: 147,182,329 steps
+tools/vm C1.txt 10000000000 < tier3/tier3.v1 > C2.txt  # Step 3: about 151M steps
 tools/vm C2.txt 10000000000 < tier3/tier3.v1 > C3.txt
 cmp C1.txt C2.txt && cmp C2.txt C3.txt                 # all three identical
 ```
@@ -223,7 +223,7 @@ v1 has no mutual recursion, so every recursive part of the compiler is a single 
 | `v1c.py` on the corpus and random programs | 80 corpus + 1,300 random: all match the reference interpreter |
 | Self-compiled compiler (C1) on the same | 80 corpus + 1,300 random: all match |
 | C1's output vs `v1c.py`'s output | byte-identical on every corpus program |
-| Bootstrap on the organisers' `VM_tier3` (Ubuntu 24.04) | C1 = C2 = C3, 147M steps |
+| Bootstrap on the organisers' `VM_tier3` (Ubuntu 24.04) | C1 = C2 = C3, 150,629,572 steps |
 | 59.8 KB input to C1 | 214M steps (limit 10^10), output identical to `v1c.py` |
 | Tier 1 programs on the organisers' `VM_tier1and2` | all correct |
 
@@ -243,6 +243,8 @@ The brief leaves a few points open. Where it does, we chose the C-like reading a
 
 - Multiplying two variables costs up to about 350 steps (fewer when the multiplier is small); a literal factor becomes a dozen additions.
 - A function calling itself saves its whole frame, not only the cells still needed after the call.
+- The brief leaves two scope questions open. Both compilers accept a local used after the block that declared it (a live local or a global of that name wins first), and a name declared twice in one block (the second declaration hides the first). `tests/lenient/` covers both.
+- `tier3.v1` keeps its tables in fixed arrays: 60,000 tree nodes, 8,000 globals, 6,000 arrays, 256 temporaries per function. It generates code recursively, so one flat expression of more than about 4,000 operators runs out of stack (2,000 nested `if`s and 1,000 nested parentheses are fine). `v1c.py` has no such limits.
 
 ## Team
 

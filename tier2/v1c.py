@@ -222,6 +222,7 @@ class Parser(object):
         f = Func(name, len(self.flist))
         self.cur = f
         self.scopes = [{}]
+        self.ended = {}           # locals whose block has closed: still found, as a last resort
         lx.expect('(')
         if not lx.is_(')'):
             while True:
@@ -257,7 +258,8 @@ class Parser(object):
                 out.append(st)
         lx.next()
         if new_scope:
-            self.scopes.pop()
+            for k, v in self.scopes.pop().items():
+                self.ended[k] = max(v, self.ended.get(k, -1))   # latest declaration, as tier3 does
         return out
 
     def lookup_var(self, name):
@@ -266,6 +268,8 @@ class Parser(object):
                 return ('l', sc[name])
         if name in self.globals:
             return ('g', self.globals[name])
+        if name in self.ended:
+            return ('l', self.ended[name])
         self.lx.err('unknown variable %s' % name)
 
     def parse_stmt(self):
@@ -275,8 +279,6 @@ class Parser(object):
             name = lx.ident()
             lx.expect(';')
             sc = self.scopes[-1]
-            if name in sc and len(self.scopes) > 1:
-                lx.err('%s declared twice in one block' % name)
             sc[name] = self.cur.nlocals
             self.cur.nlocals += 1
             return None
@@ -1053,5 +1055,12 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.setrecursionlimit(100000)
-    sys.exit(main())
+    # a 60,000-byte expression nests about 120,000 calls deep: give the parser a big stack
+    import threading
+    sys.setrecursionlimit(1000000)
+    threading.stack_size(255 << 20)   # Windows refuses 256 MB or more
+    result = []
+    t = threading.Thread(target=lambda: result.append(main()))
+    t.start()
+    t.join()
+    sys.exit(result[0] if result else 1)

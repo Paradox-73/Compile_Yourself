@@ -1,0 +1,13 @@
+// Readings the brief leaves open. Both compilers accept them.
+var g;
+func main() {
+  var i;
+  i = 0;
+  while (i < 3) { var t; t = i * 2; i = i + 1; }
+  putc(48 + t);            // t still names the loop's local: last value 4
+  if (1) { var u; u = 7; var u; u = 5; putc(48 + u); }
+  g = 3;
+  if (1) { var g; g = 9; }
+  putc(48 + g);            // a global wins over a closed block's local: 3
+  putc(10);
+}
