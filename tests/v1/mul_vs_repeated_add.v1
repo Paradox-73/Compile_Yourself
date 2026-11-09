@@ -1,0 +1,47 @@
+array pw[10];
+func pd(n) {
+  var m; var i; var d; var s;
+  if (n < 0) { putc(45); m = n; } else { m = 0 - n; }
+  pw[0] = 1;
+  i = 1;
+  while (i < 10) { pw[i] = pw[i - 1] * 10; i = i + 1; }
+  s = 0;
+  i = 9;
+  while (i >= 0) {
+    d = 0;
+    while (m <= 0 - pw[i]) { m = m + pw[i]; d = d + 1; }
+    if (d != 0) { s = 1; }
+    if (i == 0) { s = 1; }
+    if (s) { putc(48 + d); }
+    i = i - 1;
+  }
+  putc(10);
+}
+func slowmul(a, b) {
+  var r; var k;
+  r = 0;
+  k = 0;
+  if (a < 0) {
+    while (k > a) { r = r - b; k = k - 1; }
+  } else {
+    while (k < a) { r = r + b; k = k + 1; }
+  }
+  return r;
+}
+func main() {
+  var a; var b; var bad; var n;
+  bad = 0;
+  n = 0;
+  a = -20;
+  while (a <= 20) {
+    b = -2147483647 - 1;
+    while (b < 2147483647 - 300000000) {
+      if (a * b != slowmul(a, b)) { bad = bad + 1; }
+      n = n + 1;
+      b = b + 300000000;
+    }
+    a = a + 1;
+  }
+  pd(bad);
+  pd(n);
+}

@@ -1,0 +1,9 @@
+func nest(v) {
+  putc(65); if (v == 0) { putc(66); if (v != 0) { putc(121); } else { putc(67); if (v == 0) { putc(68); if (v != 0) { putc(121); } else { putc(69); if (v == 0) { putc(70); if (v != 0) { putc(121); } else { putc(71); if (v == 0) { putc(72); if (v != 0) { putc(121); } else { putc(73); if (v == 0) { putc(74); if (v != 0) { putc(121); } else { putc(75); if (v == 0) { putc(76); if (v != 0) { putc(121); } else { putc(77); if (v == 0) { putc(78); if (v != 0) { putc(121); } else { putc(79); if (v == 0) { putc(80); if (v != 0) { putc(121); } else { putc(81); if (v == 0) { putc(82); if (v != 0) { putc(121); } else { putc(83); if (v == 0) { putc(84); if (v != 0) { putc(121); } else { putc(85); if (v == 0) { putc(86); if (v != 0) { putc(121); } else { putc(33); } } else { putc(120); } } } else { putc(120); } } } else { putc(120); } } } else { putc(120); } } } else { putc(120); } } } else { putc(120); } } } else { putc(120); } } } else { putc(120); } } } else { putc(120); } } } else { putc(120); } } } else { putc(120); }
+}
+func main() {
+  nest(0);
+  putc(10);
+  nest(1);
+  putc(10);
+}

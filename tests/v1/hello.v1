@@ -1,0 +1,2 @@
+// only putc of literals, so even the smallest compiler can run it
+func main() { putc(72); putc(105); putc(33); putc(10); }

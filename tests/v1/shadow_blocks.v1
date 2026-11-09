@@ -1,0 +1,41 @@
+array pw[10];
+func pd(n) {
+  var m; var i; var d; var s;
+  if (n < 0) { putc(45); m = n; } else { m = 0 - n; }
+  pw[0] = 1;
+  i = 1;
+  while (i < 10) { pw[i] = pw[i - 1] * 10; i = i + 1; }
+  s = 0;
+  i = 9;
+  while (i >= 0) {
+    d = 0;
+    while (m <= 0 - pw[i]) { m = m + pw[i]; d = d + 1; }
+    if (d != 0) { s = 1; }
+    if (i == 0) { s = 1; }
+    if (s) { putc(48 + d); }
+    i = i - 1;
+  }
+  putc(10);
+}
+func main() {
+  var a; var n;
+  a = 1;
+  n = 0;
+  if (a == 1) {
+    var a;
+    a = 2;
+    pd(a);
+    while (n < 3) {
+      var a;
+      a = 100 + n;
+      pd(a);
+      n = n + 1;
+    }
+    pd(a);
+  } else { pd(999); }
+  pd(a);
+  pd(n);
+  if (1) { var b; b = 5; pd(b); }
+  if (1) { var b; b = 6; pd(b); }
+  while (n > 0) { var c; c = n * 11; pd(c); n = n - 1; }
+}

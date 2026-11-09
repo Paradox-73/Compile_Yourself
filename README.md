@@ -10,9 +10,9 @@
 [![No dependencies](https://img.shields.io/badge/Dependencies-none-1baf7a?style=for-the-badge)](#quick-start)
 <br>
 [![One instruction](https://img.shields.io/badge/Instruction%20set-subleq-4fd1e0?style=for-the-badge&labelColor=0b1016)](#the-machine)
-[![Tier 1](https://img.shields.io/badge/Tier%201-in%20progress-f5a524?style=for-the-badge&labelColor=0b1016)](#status)
+[![Tier 1](https://img.shields.io/badge/Tier%201-done-1baf7a?style=for-the-badge&labelColor=0b1016)](#status)
 [![Tier 2](https://img.shields.io/badge/Tier%202-working-1baf7a?style=for-the-badge&labelColor=0b1016)](#status)
-[![Tier 3](https://img.shields.io/badge/Tier%203-in%20progress-f5a524?style=for-the-badge&labelColor=0b1016)](#status)
+[![Bootstrap C2 = C3](https://img.shields.io/badge/Bootstrap-C1%20%3D%20C2%20%3D%20C3-1baf7a?style=for-the-badge&labelColor=0b1016)](#tier-3-the-bootstrap)
 
 **[Repository](https://github.com/Paradox-73/Compile_Yourself)** &nbsp;|&nbsp; [Compiler](tier2/v1c.py) &nbsp;|&nbsp; [Build and run](tier2/BUILD.md) &nbsp;|&nbsp; [Design log](docs/design_log.md)
 
@@ -43,9 +43,9 @@ This repository is the entry of team Claude laggye for problem COMP01, "Compile 
 
 | Tier | What it is | State |
 |---|---|---|
-| 1 | Four machine programs: `echo`, `reverse`, `bigmul`, `hanoi` | in progress |
+| 1 | Four machine programs: `echo`, `reverse`, `bigmul`, `hanoi` | done: hanoi n=8 in 88k steps, two 40-digit numbers in 0.69M steps |
 | 2 | `tier2/v1c.py`: v1 to machine code, in Python | compiles the full language; both examples from the brief run correctly |
-| 3 | `tier3/tier3.v1`: the same compiler written in v1 | in progress |
+| 3 | `tier3/tier3.v1`: the same compiler written in v1 | done: compiles itself in 132M steps (limit 10^10); C1, C2 and C3 are byte-identical |
 
 This table is updated as each tier lands.
 
@@ -193,14 +193,23 @@ The four programs are written in v1 (`tier1/src/`) and compiled with `v1c.py`. T
 
 | Program | Idea | Worst case within 10^8 steps |
 |---|---|---|
-| `echo` | read bytes until -1, print each | in progress |
-| `reverse` | store up to 1000 bytes, print them backwards | in progress |
-| `bigmul` | 40-digit numbers as digit arrays, schoolbook multiply with carries | in progress |
-| `hanoi` | the recursive solution, two letters and a newline per move | in progress |
+| `echo` | read bytes until -1, print each | a few steps per byte |
+| `reverse` | store up to 1000 bytes, print them backwards | well under 1M steps |
+| `bigmul` | 40-digit numbers as digit arrays, schoolbook multiply, carries by repeated subtraction (no division) | 0.69M steps for 40 x 40 digits |
+| `hanoi` | the recursive solution, two letters and a newline per move | 88k steps for n = 8 |
 
 ## Tier 3: the bootstrap
 
 `tier3/tier3.v1` is a line-by-line port of `v1c.py` into v1: the same lexer, the same tree, the same two passes, with arrays in place of Python lists and character codes in place of strings. Because it is the same algorithm, it must print exactly what `v1c.py` prints for any input. That gives a strong check: `v1c.py X` and `C1 X` must be byte-identical for every test program `X`, and then `C1 = C2 = C3` follows.
+
+```
+python3 tier2/v1c.py < tier3/tier3.v1 > C1.txt       # Step 1
+tools/vm C1.txt 10000000000 < tier3/tier3.v1 > C2.txt  # Step 3: 132,130,819 steps
+tools/vm C2.txt 10000000000 < tier3/tier3.v1 > C3.txt
+cmp C1.txt C2.txt && cmp C2.txt C3.txt                 # all three identical
+```
+
+v1 has no mutual recursion, so every recursive part of the compiler is a single function that calls itself: `pexp(level)` parses all four precedence levels, `pstmts()` parses nested blocks, and `gx(mode, ...)` generates expressions, conditions and calls.
 
 ## Testing
 

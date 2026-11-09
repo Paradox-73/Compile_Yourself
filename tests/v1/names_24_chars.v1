@@ -1,0 +1,34 @@
+array pw[10];
+func pd(n) {
+  var m; var i; var d; var s;
+  if (n < 0) { putc(45); m = n; } else { m = 0 - n; }
+  pw[0] = 1;
+  i = 1;
+  while (i < 10) { pw[i] = pw[i - 1] * 10; i = i + 1; }
+  s = 0;
+  i = 9;
+  while (i >= 0) {
+    d = 0;
+    while (m <= 0 - pw[i]) { m = m + pw[i]; d = d + 1; }
+    if (d != 0) { s = 1; }
+    if (i == 0) { s = 1; }
+    if (s) { putc(48 + d); }
+    i = i - 1;
+  }
+  putc(10);
+}
+var abcdefghijklmnopqrstuvwx;
+array ABCDEFGHIJKLMNOPQRSTUVWX[3];
+var abcdefghijklmnopqrstuvwX;
+func f23456789012345678901234(p_3456789012345678901234) { return p_3456789012345678901234 * 2; }
+func main() {
+  var _bcdefghijklmnopqrstuvw9;
+  _bcdefghijklmnopqrstuvw9 = 5;
+  abcdefghijklmnopqrstuvwx = 7;
+  ABCDEFGHIJKLMNOPQRSTUVWX[2] = 11;
+  abcdefghijklmnopqrstuvwX = f23456789012345678901234(ABCDEFGHIJKLMNOPQRSTUVWX[2]);
+  pd(abcdefghijklmnopqrstuvwx);
+  pd(_bcdefghijklmnopqrstuvw9);
+  pd(abcdefghijklmnopqrstuvwX);
+  pd(ABCDEFGHIJKLMNOPQRSTUVWX[2]);
+}

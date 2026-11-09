@@ -1,0 +1,14 @@
+func main() {
+  var n; var c;
+  if (-1) { putc(65); } else { putc(97); }
+  if (0) { putc(98); } else { putc(66); }
+  if (2147483647) { putc(67); } else { putc(99); }
+  if (-2147483647 - 1) { putc(68); } else { putc(100); }
+  if (2 - 2) { putc(101); } else { putc(69); }
+  if (256) { putc(70); } else { putc(102); }
+  n = -3;
+  c = 0;
+  while (n) { n = n + 1; c = c + 1; }
+  putc(48 + c);
+  putc(10);
+}

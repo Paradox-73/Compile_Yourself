@@ -1,0 +1,9 @@
+var moves;
+func hanoi(n, from, to, via) {
+  if (n == 0) { return 0; }
+  hanoi(n - 1, from, via, to);
+  putc(from); putc(to); putc(10);
+  moves = moves + 1;
+  hanoi(n - 1, via, to, from);
+}
+func main() { hanoi(4, 65, 67, 66); putc(48 + moves - 10); putc(48 + moves - 15); putc(10); }

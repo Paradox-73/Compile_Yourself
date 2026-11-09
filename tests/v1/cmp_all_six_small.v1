@@ -1,0 +1,13 @@
+func cmp6(a, b) {
+  putc(48 + (a < b)); putc(48 + (a <= b)); putc(48 + (a > b));
+  putc(48 + (a >= b)); putc(48 + (a == b)); putc(48 + (a != b)); putc(10);
+}
+func main() {
+  cmp6(1, 2);
+  cmp6(2, 1);
+  cmp6(2, 2);
+  cmp6(-3, 3);
+  cmp6(3, -3);
+  cmp6(-5, -5);
+  cmp6(0, -1);
+}

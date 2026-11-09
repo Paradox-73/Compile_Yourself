@@ -486,7 +486,7 @@ class Gen(object):
         if x == y:
             return
         self.clr(x)
-        if y != self.const(0):
+        if not (y[0] == CON and self.consts[y[1]] == 0):
             self.add(x, y)
 
     def neg_into(self, x, y):
@@ -960,7 +960,7 @@ def main():
     out = []
     for i in range(0, len(words), 12):
         out.append(' '.join(str(w) for w in words[i:i + 12]))
-    sys.stdout.write('\n'.join(out) + '\n')
+    sys.stdout.buffer.write(('\n'.join(out) + '\n').encode('ascii'))
     return 0
 
 

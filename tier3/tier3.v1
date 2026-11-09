@@ -1,0 +1,1267 @@
+// tier3.v1 - the v1 compiler written in v1. A line-by-line port of tier2/v1c.py:
+// same parser, same tree, same two passes, same output. v1 has no strings and no
+// mutual recursion, so names are (start, length) slices of the source, and each
+// recursive part of the compiler is a single function that calls itself.
+
+array src[60010];
+var slen;
+var pos;
+var tk;
+var tval;
+var ts;
+var tl;
+var tp;
+
+// tree: kind, three fields, next in list
+array nk[40000];
+array n1[40000];
+array n2[40000];
+array n3[40000];
+array nx[40000];
+var nn;
+
+array gs[3000];
+array gl[3000];
+var ng;
+array ars[600];
+array arl[600];
+array arsz[600];
+var na;
+array fs[202];
+array fl[202];
+array fnp[202];
+array fnl[202];
+array fbody[202];
+var nf;
+var cf;
+
+array scs[3000];
+array scl[3000];
+array sci[3000];
+array scd[3000];
+var nsc;
+var depth;
+var pends;
+var pendl;
+
+var pass;
+var pc;
+var nlab;
+array labaddr[80000];
+array ck[30000];
+array cv[30000];
+array csg[30000];
+var ncon;
+var ndata;
+var codesize;
+var database;
+var stackbase;
+array gcell[3000];
+array abase[600];
+array fnret[202];
+array fentry[202];
+array fexit[202];
+array ftcnt[202];
+array ftbase[202];
+array ftoff[26000];
+var cfun;
+var ntemp;
+var opZ;
+var opT1;
+var opT2;
+var opRV;
+var opM1;
+var opSP;
+var opMA;
+var opMB;
+var opMR;
+var opMC;
+var opMN;
+var mulent;
+var nwords;
+var linew;
+array vstk[4000];
+var vsp;
+array svl[4000];
+var nsv;
+array pw[10];
+
+func node(k, a, b, c) {
+    nn = nn + 1;
+    nk[nn] = k;
+    n1[nn] = a;
+    n2[nn] = b;
+    n3[nn] = c;
+    nx[nn] = 0;
+    return nn;
+}
+
+func isdig(c) {
+    if (c < 48) { return 0; }
+    if (c > 57) { return 0; }
+    return 1;
+}
+
+func isal(c) {
+    if (c == 95) { return 1; }
+    if (c >= 97) { if (c <= 122) { return 1; } }
+    if (c >= 65) { if (c <= 90) { return 1; } }
+    return 0;
+}
+
+// tk: 0 end, 1 number (tval), 2 name (ts, tl), 3 punctuation (tp: the character,
+// or 1 for <=, 2 for >=, 3 for ==, 4 for !=)
+func lex() {
+    var c;
+    var more;
+    more = 1;
+    while (more) {
+        more = 0;
+        if (pos < slen) {
+            c = src[pos];
+            if (c <= 32) {
+                pos = pos + 1;
+                more = 1;
+            } else {
+                if (c == 47) {
+                    if (src[pos + 1] == 47) {
+                        while (c != 10) {
+                            if (pos < slen) { c = src[pos]; pos = pos + 1; } else { c = 10; }
+                        }
+                        more = 1;
+                    }
+                }
+            }
+        }
+    }
+    if (pos >= slen) { tk = 0; return 0; }
+    c = src[pos];
+    if (isdig(c)) {
+        tval = 0;
+        while (isdig(src[pos])) {
+            tval = tval + tval + tval + tval + tval;
+            tval = tval + tval + src[pos] - 48;
+            pos = pos + 1;
+        }
+        tk = 1;
+        return 0;
+    }
+    if (isal(c)) {
+        ts = pos;
+        while (isal(src[pos]) + isdig(src[pos])) { pos = pos + 1; }
+        tl = pos - ts;
+        tk = 2;
+        return 0;
+    }
+    tk = 3;
+    tp = c;
+    pos = pos + 1;
+    if (src[pos] == 61) {
+        if (c == 60) { tp = 1; }
+        if (c == 62) { tp = 2; }
+        if (c == 61) { tp = 3; }
+        if (c == 33) { tp = 4; }
+        if (tp < 5) { pos = pos + 1; }
+    }
+    return 0;
+}
+
+// does the current name spell the given letters (0 pads)?
+func word(a, b, c, d, e, f) {
+    var n;
+    n = 0;
+    if (tk != 2) { return 0; }
+    if (a) { n = 1; }
+    if (b) { n = 2; }
+    if (c) { n = 3; }
+    if (d) { n = 4; }
+    if (e) { n = 5; }
+    if (f) { n = 6; }
+    if (tl != n) { return 0; }
+    if (src[ts] != a) { return 0; }
+    if (n > 1) { if (src[ts + 1] != b) { return 0; } }
+    if (n > 2) { if (src[ts + 2] != c) { return 0; } }
+    if (n > 3) { if (src[ts + 3] != d) { return 0; } }
+    if (n > 4) { if (src[ts + 4] != e) { return 0; } }
+    if (n > 5) { if (src[ts + 5] != f) { return 0; } }
+    return 1;
+}
+
+func same(s1, l1, s2, l2) {
+    var i;
+    if (l1 != l2) { return 0; }
+    i = 0;
+    while (i < l1) {
+        if (src[s1 + i] != src[s2 + i]) { return 0; }
+        i = i + 1;
+    }
+    return 1;
+}
+
+func ispunct(c) {
+    if (tk == 3) { if (tp == c) { return 1; } }
+    return 0;
+}
+
+func expect(c) {
+    lex();
+    return 0;
+}
+
+// -1 when the name is not a local; otherwise its local index
+func findlocal(s, l) {
+    var i;
+    i = nsc - 1;
+    while (i >= 0) {
+        if (same(scs[i], scl[i], s, l)) { return sci[i]; }
+        i = i - 1;
+    }
+    return 0 - 1;
+}
+
+func findglobal(s, l) {
+    var i;
+    i = 0;
+    while (i < ng) {
+        if (same(gs[i], gl[i], s, l)) { return i; }
+        i = i + 1;
+    }
+    return 0 - 1;
+}
+
+func findarray(s, l) {
+    var i;
+    i = 0;
+    while (i < na) {
+        if (same(ars[i], arl[i], s, l)) { return i; }
+        i = i + 1;
+    }
+    return 0 - 1;
+}
+
+func findfunc(s, l) {
+    var i;
+    i = 0;
+    while (i < nf) {
+        if (same(fs[i], fl[i], s, l)) { return i; }
+        i = i + 1;
+    }
+    return 0 - 1;
+}
+
+// expression node kinds: 1 num, 2 var (n1: 0 global 1 local, n2 index), 3 idx, 4 call,
+// 5 neg, 6 bin (n1 op: 1 + 2 - 3 * 4 < 5 <= 6 > 7 >= 8 == 9 !=), 7 getc, 8 putc
+// level 0 comparisons, 1 sums, 2 products, 3 unary and primary
+func pexp(lv) {
+    var l;
+    var r;
+    var op;
+    var s;
+    var n;
+    var a;
+    var last;
+    var k;
+    if (lv < 3) {
+        l = pexp(lv + 1);
+        op = 1;
+        while (op) {
+            op = 0;
+            if (tk == 3) {
+                if (lv == 0) {
+                    if (tp == 60) { op = 4; }
+                    if (tp == 1) { op = 5; }
+                    if (tp == 62) { op = 6; }
+                    if (tp == 2) { op = 7; }
+                    if (tp == 3) { op = 8; }
+                    if (tp == 4) { op = 9; }
+                }
+                if (lv == 1) {
+                    if (tp == 43) { op = 1; }
+                    if (tp == 45) { op = 2; }
+                }
+                if (lv == 2) {
+                    if (tp == 42) { op = 3; }
+                }
+            }
+            if (op) {
+                lex();
+                r = pexp(lv + 1);
+                l = node(6, op, l, r);
+            }
+        }
+        return l;
+    }
+    if (pends < 0) {
+        if (ispunct(45)) {
+            lex();
+            return node(5, pexp(3), 0, 0);
+        }
+        if (tk == 1) {
+            n = tval;
+            lex();
+            return node(1, n, 0, 0);
+        }
+        if (ispunct(40)) {
+            lex();
+            l = pexp(0);
+            lex();
+            return l;
+        }
+        s = ts;
+        n = tl;
+        lex();
+    } else {
+        s = pends;
+        n = pendl;
+        pends = 0 - 1;
+    }
+    if (ispunct(40)) {
+        lex();
+        a = 0;
+        last = 0;
+        k = 0;
+        while (ispunct(41) == 0) {
+            r = pexp(0);
+            if (last) { nx[last] = r; } else { a = r; }
+            last = r;
+            k = k + 1;
+            if (ispunct(44)) { lex(); }
+        }
+        lex();
+        if (n == 4) {
+            if (src[s] == 103) { if (src[s + 1] == 101) { if (src[s + 2] == 116) { if (src[s + 3] == 99) {
+                return node(7, 0, 0, 0);
+            } } } }
+            if (src[s] == 112) { if (src[s + 1] == 117) { if (src[s + 2] == 116) { if (src[s + 3] == 99) {
+                return node(8, a, 0, 0);
+            } } } }
+        }
+        return node(4, findfunc(s, n), a, 0);
+    }
+    if (ispunct(91)) {
+        lex();
+        l = pexp(0);
+        lex();
+        return node(3, findarray(s, n), l, 0);
+    }
+    k = findlocal(s, n);
+    if (k >= 0) { return node(2, 1, k, 0); }
+    return node(2, 0, findglobal(s, n), 0);
+}
+
+// statement kinds: 10 set (n1 0/1 global/local, n2 index, n3 expr), 11 array set
+// (n1 array, n2 index expr, n3 expr), 12 call, 13 if (n1 cond, n2 then, n3 else),
+// 14 while (n1 cond, n2 body), 15 return. Parses statements up to the closing brace,
+// which it consumes, and returns the first of the list.
+func pstmts() {
+    var head;
+    var last;
+    var st;
+    var s;
+    var l;
+    var c;
+    var a;
+    var b;
+    var k;
+    var mark;
+    head = 0;
+    last = 0;
+    mark = nsc;
+    depth = depth + 1;
+    while (ispunct(125) == 0) {
+        st = 0;
+        if (word(118, 97, 114, 0, 0, 0)) {
+            lex();
+            scs[nsc] = ts;
+            scl[nsc] = tl;
+            sci[nsc] = fnl[cf];
+            scd[nsc] = depth;
+            nsc = nsc + 1;
+            fnl[cf] = fnl[cf] + 1;
+            lex();
+            lex();
+        } else {
+            if (word(105, 102, 0, 0, 0, 0)) {
+                lex();
+                lex();
+                c = pexp(0);
+                lex();
+                lex();
+                a = pstmts();
+                b = 0;
+                if (word(101, 108, 115, 101, 0, 0)) {
+                    lex();
+                    lex();
+                    b = pstmts();
+                }
+                st = node(13, c, a, b);
+            } else {
+                if (word(119, 104, 105, 108, 101, 0)) {
+                    lex();
+                    lex();
+                    c = pexp(0);
+                    lex();
+                    lex();
+                    st = node(14, c, pstmts(), 0);
+                } else {
+                    if (word(114, 101, 116, 117, 114, 110)) {
+                        lex();
+                        st = node(15, pexp(0), 0, 0);
+                        lex();
+                    } else {
+                        s = ts;
+                        l = tl;
+                        lex();
+                        if (ispunct(40)) {
+                            pends = s;
+                            pendl = l;
+                            st = node(12, pexp(3), 0, 0);
+                            lex();
+                        } else {
+                            if (ispunct(91)) {
+                                lex();
+                                a = pexp(0);
+                                lex();
+                                lex();
+                                b = pexp(0);
+                                lex();
+                                st = node(11, findarray(s, l), a, b);
+                            } else {
+                                lex();
+                                b = pexp(0);
+                                lex();
+                                k = findlocal(s, l);
+                                if (k >= 0) {
+                                    st = node(10, 1, k, b);
+                                } else {
+                                    st = node(10, 0, findglobal(s, l), b);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (st) {
+            if (last) { nx[last] = st; } else { head = st; }
+            last = st;
+        }
+    }
+    lex();
+    nsc = mark;
+    depth = depth - 1;
+    return head;
+}
+
+func parse() {
+    var s;
+    var l;
+    lex();
+    while (tk) {
+        if (word(118, 97, 114, 0, 0, 0)) {
+            lex();
+            gs[ng] = ts;
+            gl[ng] = tl;
+            ng = ng + 1;
+            lex();
+            lex();
+        } else {
+            if (word(97, 114, 114, 97, 121, 0)) {
+                lex();
+                ars[na] = ts;
+                arl[na] = tl;
+                lex();
+                lex();
+                arsz[na] = tval;
+                na = na + 1;
+                lex();
+                lex();
+                lex();
+            } else {
+                lex();
+                fs[nf] = ts;
+                fl[nf] = tl;
+                cf = nf;
+                fnp[cf] = 0;
+                fnl[cf] = 0;
+                nsc = 0;
+                depth = 0;
+                lex();
+                lex();
+                while (ispunct(41) == 0) {
+                    scs[nsc] = ts;
+                    scl[nsc] = tl;
+                    sci[nsc] = fnl[cf];
+                    scd[nsc] = 0;
+                    nsc = nsc + 1;
+                    fnl[cf] = fnl[cf] + 1;
+                    lex();
+                    if (ispunct(44)) { lex(); }
+                }
+                fnp[cf] = fnl[cf];
+                nf = nf + 1;
+                lex();
+                lex();
+                fbody[cf] = pstmts();
+            }
+        }
+    }
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// operands: kind * 4194304 + value + 1; kinds 0 absolute, 1 label, 2 constant,
+// 3 data, 4 next instruction
+func op(kind, v) {
+    var r;
+    r = v + 1;
+    while (kind > 0) {
+        r = r + 4194304;
+        kind = kind - 1;
+    }
+    return r;
+}
+
+func opkind(x) {
+    var k;
+    k = 0;
+    x = x - 1;
+    while (x >= 4194304) {
+        x = x - 4194304;
+        k = k + 1;
+    }
+    return k;
+}
+
+func opval(x) {
+    x = x - 1;
+    while (x >= 4194304) { x = x - 4194304; }
+    return x;
+}
+
+func newlab() {
+    nlab = nlab + 1;
+    return nlab;
+}
+
+func place(l) {
+    labaddr[l] = pc;
+    return 0;
+}
+
+func data(n) {
+    var d;
+    d = ndata;
+    ndata = ndata + n;
+    return d;
+}
+
+// constant pool: kind 0 value, 1 label (with sign), 2 data address, 3 stack base
+func conk(kind, v, sg) {
+    var i;
+    i = 0;
+    while (i < ncon) {
+        if (ck[i] == kind) { if (cv[i] == v) { if (csg[i] == sg) { return op(2, i); } } }
+        i = i + 1;
+    }
+    ck[ncon] = kind;
+    cv[ncon] = v;
+    csg[ncon] = sg;
+    ncon = ncon + 1;
+    return op(2, ncon - 1);
+}
+
+func con(v) {
+    return conk(0, v, 0);
+}
+
+func putnum(v) {
+    var i;
+    var d;
+    var started;
+    if (v < 0) {
+        putc(45);
+        v = 0 - v;
+        if (v < 0) {
+            putc(50); putc(49); putc(52); putc(55); putc(52); putc(56);
+            putc(51); putc(54); putc(52); putc(56);
+            return 0;
+        }
+    }
+    started = 0;
+    i = 0;
+    while (i < 10) {
+        d = 0;
+        while (v >= pw[i]) {
+            v = v - pw[i];
+            d = d + 1;
+        }
+        if (d) { started = 1; }
+        if (i == 9) { started = 1; }
+        if (started) { putc(48 + d); }
+        i = i + 1;
+    }
+    return 0;
+}
+
+func outword(v) {
+    if (nwords) {
+        if (linew == 12) {
+            putc(10);
+            linew = 0;
+        } else {
+            putc(32);
+        }
+    }
+    putnum(v);
+    nwords = nwords + 1;
+    linew = linew + 1;
+    return 0;
+}
+
+func resolve(x) {
+    var k;
+    var v;
+    k = opkind(x);
+    v = opval(x);
+    if (k == 0) { return v; }
+    if (k == 1) { return labaddr[v]; }
+    if (k == 2) { return codesize + v; }
+    if (k == 3) { return database + v; }
+    return pc + 3;
+}
+
+func emit(a, b, c) {
+    if (pass == 2) {
+        outword(resolve(a));
+        outword(resolve(b));
+        outword(resolve(c));
+    }
+    pc = pc + 3;
+    return 0;
+}
+
+func e2(a, b) {
+    emit(a, b, op(4, 0));
+    return 0;
+}
+
+func jmp(l) {
+    emit(opM1, opZ, op(1, l));
+    return 0;
+}
+
+func clr(x) {
+    e2(x, x);
+    return 0;
+}
+
+func add(x, y) {
+    e2(opZ, y);
+    e2(x, opZ);
+    e2(opZ, opZ);
+    return 0;
+}
+
+func mov(x, y) {
+    if (x == y) { return 0; }
+    clr(x);
+    if (opkind(y) == 2) {
+        if (ck[opval(y)] == 0) { if (cv[opval(y)] == 0) { return 0; } }
+    }
+    add(x, y);
+    return 0;
+}
+
+func negin(x, y) {
+    clr(x);
+    e2(x, y);
+    return 0;
+}
+
+func jlt(x, l) {
+    emit(x, opZ, op(1, l));
+    return 0;
+}
+
+func cell(kind, i) {
+    if (kind == 0) { return gcell[i]; }
+    return op(3, fnret[cfun] + 1 + i);
+}
+
+func temp() {
+    var t;
+    if (ntemp == ftcnt[cfun]) {
+        ftoff[ftbase[cfun] + ntemp] = op(3, data(1));
+        ftcnt[cfun] = ftcnt[cfun] + 1;
+    }
+    t = ftoff[ftbase[cfun] + ntemp];
+    ntemp = ntemp + 1;
+    return t;
+}
+
+func istemp(x) {
+    var i;
+    i = 0;
+    while (i < ftcnt[cfun]) {
+        if (ftoff[ftbase[cfun] + i] == x) { return 1; }
+        i = i + 1;
+    }
+    return 0;
+}
+
+func less(a, b, lt, lf) {
+    var aneg;
+    var diff;
+    aneg = newlab();
+    diff = newlab();
+    jlt(a, aneg);
+    jlt(b, lf);
+    jmp(diff);
+    place(aneg);
+    jlt(b, diff);
+    jmp(lt);
+    place(diff);
+    mov(opT1, a);
+    e2(opT1, b);
+    jlt(opT1, lt);
+    jmp(lf);
+    return 0;
+}
+
+func equal(a, b, lt, lf) {
+    mov(opT1, a);
+    e2(opT1, b);
+    jlt(opT1, lf);
+    negin(opT2, opT1);
+    jlt(opT2, lf);
+    jmp(lt);
+    return 0;
+}
+
+func addrneg(arr, ix) {
+    negin(opT2, ix);
+    e2(opT2, conk(2, abase[arr], 0));
+    return 0;
+}
+
+func loadidx(arr, ix, dst) {
+    var f;
+    addrneg(arr, ix);
+    f = op(0, pc + 7);
+    clr(f);
+    e2(f, opT2);
+    e2(opZ, op(0, 0));
+    clr(dst);
+    e2(dst, opZ);
+    e2(opZ, opZ);
+    return 0;
+}
+
+func patch3() {
+    var b;
+    b = pc;
+    clr(op(0, b + 18));
+    e2(op(0, b + 18), opT2);
+    clr(op(0, b + 19));
+    e2(op(0, b + 19), opT2);
+    clr(op(0, b + 21));
+    e2(op(0, b + 21), opT2);
+    e2(op(0, 0), op(0, 0));
+    e2(op(0, 0), opT1);
+    return 0;
+}
+
+func storeidx(arr, ix, v) {
+    negin(opT1, v);
+    addrneg(arr, ix);
+    patch3();
+    return 0;
+}
+
+func push() {
+    var i;
+    negin(opT2, opSP);
+    i = 0;
+    while (i < nsv) {
+        negin(opT1, svl[i]);
+        patch3();
+        e2(opT2, con(1));
+        i = i + 1;
+    }
+    e2(opSP, con(0 - nsv));
+    return 0;
+}
+
+func pop() {
+    var i;
+    var f;
+    e2(opSP, con(nsv));
+    negin(opT2, opSP);
+    i = 0;
+    while (i < nsv) {
+        f = op(0, pc + 7);
+        clr(f);
+        e2(f, opT2);
+        e2(opZ, op(0, 0));
+        clr(svl[i]);
+        e2(svl[i], opZ);
+        e2(opZ, opZ);
+        e2(opT2, con(1));
+        i = i + 1;
+    }
+    return 0;
+}
+
+func mulcall(a, b, dst) {
+    var back;
+    mov(opMA, a);
+    mov(opMB, b);
+    back = newlab();
+    clr(opMN);
+    e2(opMN, conk(1, back, 1));
+    jmp(mulent);
+    place(back);
+    mov(dst, opMR);
+    return 0;
+}
+
+// The expression generator, one function because v1 has no mutual recursion.
+// mode 0: return an operand holding e;  1: put e into dst;  2: jump to lt if e is
+// non-zero else lf;  3: like 0, but copy a variable to a temp when the expression
+// `dst` (a node) could change it;  4: does e call, read or print (1/0);  5: a call
+func gx(mode, e, dst, lt, lf) {
+    var k;
+    var t;
+    var v;
+    var a;
+    var b;
+    var mark;
+    var o;
+    var lend;
+    var x;
+    var n;
+    var base;
+    var fi;
+    var i;
+    var j;
+    var keep;
+    k = nk[e];
+    if (mode == 4) {
+        if (k == 4) { return 1; }
+        if (k == 7) { return 1; }
+        if (k == 8) { return 1; }
+        if (k == 3) { return gx(4, n2[e], 0, 0, 0); }
+        if (k == 5) { return gx(4, n1[e], 0, 0, 0); }
+        if (k == 6) {
+            if (gx(4, n2[e], 0, 0, 0)) { return 1; }
+            return gx(4, n3[e], 0, 0, 0);
+        }
+        return 0;
+    }
+    if (mode == 3) {
+        v = gx(0, e, 0, 0, 0);
+        if (opkind(v) == 3) {
+            if (istemp(v) == 0) {
+                if (gx(4, dst, 0, 0, 0)) {
+                    t = temp();
+                    mov(t, v);
+                    return t;
+                }
+            }
+        }
+        return v;
+    }
+    if (mode == 0) {
+        if (k == 1) { return con(n1[e]); }
+        if (k == 2) { return cell(n1[e], n2[e]); }
+        t = temp();
+        gx(1, e, t, 0, 0);
+        return t;
+    }
+    if (mode == 2) {
+        mark = ntemp;
+        o = 0;
+        if (k == 6) { if (n1[e] >= 4) { o = n1[e]; } }
+        if (o) {
+            a = gx(3, n2[e], n3[e], 0, 0);
+            b = gx(0, n3[e], 0, 0, 0);
+            if (o == 4) { less(a, b, lt, lf); }
+            if (o == 6) { less(b, a, lt, lf); }
+            if (o == 5) { less(b, a, lf, lt); }
+            if (o == 7) { less(a, b, lf, lt); }
+            if (o == 8) { equal(a, b, lt, lf); }
+            if (o == 9) { equal(a, b, lf, lt); }
+        } else {
+            v = gx(0, e, 0, 0, 0);
+            jlt(v, lt);
+            negin(opT1, v);
+            jlt(opT1, lt);
+            jmp(lf);
+        }
+        ntemp = mark;
+        return 0;
+    }
+    if (mode == 5) {
+        fi = n1[e];
+        mark = ntemp;
+        base = vsp;
+        n = 0;
+        x = n2[e];
+        while (x) {
+            keep = 0;
+            j = nx[x];
+            while (j) {
+                if (gx(4, j, 0, 0, 0)) { keep = 1; }
+                j = nx[j];
+            }
+            v = gx(0, x, 0, 0, 0);
+            if (opkind(v) == 3) {
+                if (istemp(v) == 0) {
+                    if (fi == cfun) { keep = 1; }
+                    if (keep) {
+                        t = temp();
+                        mov(t, v);
+                        v = t;
+                    }
+                }
+            }
+            vstk[vsp] = v;
+            vsp = vsp + 1;
+            n = n + 1;
+            x = nx[x];
+        }
+        if (fi == cfun) {
+            nsv = 0;
+            svl[nsv] = op(3, fnret[cfun]);
+            nsv = nsv + 1;
+            i = 0;
+            while (i < fnl[cfun]) {
+                svl[nsv] = op(3, fnret[cfun] + 1 + i);
+                nsv = nsv + 1;
+                i = i + 1;
+            }
+            i = 0;
+            while (i < ntemp) {
+                t = ftoff[ftbase[cfun] + i];
+                keep = 1;
+                j = base;
+                while (j < vsp) {
+                    if (vstk[j] == t) { keep = 0; }
+                    j = j + 1;
+                }
+                if (keep) {
+                    svl[nsv] = t;
+                    nsv = nsv + 1;
+                }
+                i = i + 1;
+            }
+            push();
+        }
+        i = 0;
+        while (i < n) {
+            mov(op(3, fnret[fi] + 1 + i), vstk[base + i]);
+            i = i + 1;
+        }
+        lend = newlab();
+        clr(op(3, fnret[fi]));
+        e2(op(3, fnret[fi]), conk(1, lend, 1));
+        jmp(fentry[fi]);
+        place(lend);
+        if (fi == cfun) { pop(); }
+        vsp = base;
+        ntemp = mark;
+        return 0;
+    }
+    // mode 1: into dst
+    if (k == 1) { mov(dst, con(n1[e])); return 0; }
+    if (k == 2) { mov(dst, cell(n1[e], n2[e])); return 0; }
+    if (k == 5) {
+        if (nk[n1[e]] == 1) {
+            mov(dst, con(0 - n1[n1[e]]));
+            return 0;
+        }
+        mark = ntemp;
+        v = gx(0, n1[e], 0, 0, 0);
+        if (v == dst) {
+            t = temp();
+            mov(t, v);
+            v = t;
+        }
+        negin(dst, v);
+        ntemp = mark;
+        return 0;
+    }
+    if (k == 7) {
+        clr(dst);
+        e2(opZ, op(0, 1048574));
+        e2(dst, opZ);
+        e2(opZ, opZ);
+        return 0;
+    }
+    if (k == 8) {
+        mark = ntemp;
+        v = gx(0, n1[e], 0, 0, 0);
+        negin(opT1, v);
+        e2(op(0, 1048575), opT1);
+        clr(dst);
+        ntemp = mark;
+        return 0;
+    }
+    if (k == 3) {
+        mark = ntemp;
+        v = gx(0, n2[e], 0, 0, 0);
+        loadidx(n1[e], v, dst);
+        ntemp = mark;
+        return 0;
+    }
+    if (k == 4) {
+        gx(5, e, 0, 0, 0);
+        mov(dst, opRV);
+        return 0;
+    }
+    // binary operator
+    o = n1[e];
+    mark = ntemp;
+    if (o >= 4) {
+        lt = newlab();
+        lf = newlab();
+        lend = newlab();
+        gx(2, e, 0, lt, lf);
+        place(lt);
+        clr(dst);
+        e2(dst, opM1);
+        jmp(lend);
+        place(lf);
+        clr(dst);
+        place(lend);
+        ntemp = mark;
+        return 0;
+    }
+    a = gx(3, n2[e], n3[e], 0, 0);
+    b = gx(0, n3[e], 0, 0, 0);
+    if (o == 1) {
+        if (dst == a) {
+            add(dst, b);
+        } else {
+            if (dst == b) {
+                add(dst, a);
+            } else {
+                clr(dst);
+                e2(opZ, a);
+                e2(opZ, b);
+                e2(dst, opZ);
+                e2(opZ, opZ);
+            }
+        }
+    }
+    if (o == 2) {
+        if (dst == b) {
+            if (dst != a) {
+                t = temp();
+                mov(t, b);
+                b = t;
+            }
+        }
+        mov(dst, a);
+        e2(dst, b);
+    }
+    if (o == 3) { mulcall(a, b, dst); }
+    ntemp = mark;
+    return 0;
+}
+
+func gst(s) {
+    var mark;
+    var k;
+    var lt;
+    var lf;
+    var lend;
+    var ix;
+    var v;
+    while (s) {
+        k = nk[s];
+        mark = ntemp;
+        if (k == 10) { gx(1, n3[s], 0 - 1 + 1 + cell(n1[s], n2[s]), 0, 0); }
+        if (k == 11) {
+            ix = gx(3, n2[s], n3[s], 0, 0);
+            v = gx(0, n3[s], 0, 0, 0);
+            storeidx(n1[s], ix, v);
+        }
+        if (k == 12) { gx(0, n1[s], 0, 0, 0); }
+        if (k == 13) {
+            lt = newlab();
+            lf = newlab();
+            lend = newlab();
+            gx(2, n1[s], 0, lt, lf);
+            place(lt);
+            gst(n2[s]);
+            if (n3[s]) {
+                jmp(lend);
+                place(lf);
+                gst(n3[s]);
+                place(lend);
+            } else {
+                place(lf);
+            }
+        }
+        if (k == 14) {
+            lt = newlab();
+            lf = newlab();
+            lend = newlab();
+            place(lt);
+            gx(2, n1[s], 0, lf, lend);
+            place(lf);
+            gst(n2[s]);
+            jmp(lt);
+            place(lend);
+        }
+        if (k == 15) {
+            gx(1, n1[s], opRV, 0, 0);
+            jmp(fexit[cfun]);
+        }
+        ntemp = mark;
+        s = nx[s];
+    }
+    return 0;
+}
+
+func genmul() {
+    var top;
+    var skip;
+    var done;
+    place(mulent);
+    top = newlab();
+    skip = newlab();
+    done = newlab();
+    clr(opMR);
+    clr(opMC);
+    e2(opMC, con(32));
+    place(top);
+    add(opMR, opMR);
+    emit(opMB, opZ, op(1, skip));
+    jmp(done);
+    place(skip);
+    add(opMR, opMA);
+    place(done);
+    add(opMB, opMB);
+    e2(opMC, opM1);
+    emit(opMC, opZ, op(1, top));
+    clr(op(0, pc + 8));
+    e2(op(0, pc + 5), opMN);
+    emit(opM1, opZ, op(0, 0));
+    return 0;
+}
+
+func run() {
+    var i;
+    var j;
+    var halt;
+    var mainf;
+    pc = 0;
+    nlab = 0;
+    ncon = 0;
+    ndata = 0;
+    opZ = op(3, data(1));
+    opT1 = op(3, data(1));
+    opT2 = op(3, data(1));
+    opRV = op(3, data(1));
+    opM1 = con(0 - 1);
+    opSP = conk(3, 0, 0);
+    i = 0;
+    while (i < ng) {
+        gcell[i] = op(3, data(1));
+        i = i + 1;
+    }
+    i = 0;
+    while (i < na) {
+        abase[i] = data(arsz[i]);
+        i = i + 1;
+    }
+    j = 0;
+    i = 0;
+    while (i < nf) {
+        fnret[i] = data(1);
+        data(fnl[i]);
+        ftcnt[i] = 0;
+        ftbase[i] = j;
+        j = j + 128;
+        fentry[i] = newlab();
+        fexit[i] = newlab();
+        i = i + 1;
+    }
+    mulent = newlab();
+    newlab();
+    opMA = op(3, data(1));
+    opMB = op(3, data(1));
+    opMR = op(3, data(1));
+    opMC = op(3, data(1));
+    opMN = op(3, data(1));
+    mainf = nf - 1;
+    i = 0;
+    while (i < nf) {
+        if (fl[i] == 4) {
+            if (src[fs[i]] == 109) { if (src[fs[i] + 1] == 97) { if (src[fs[i] + 2] == 105) { if (src[fs[i] + 3] == 110) {
+                mainf = i;
+            } } } }
+        }
+        i = i + 1;
+    }
+    halt = newlab();
+    clr(op(3, fnret[mainf]));
+    e2(op(3, fnret[mainf]), conk(1, halt, 1));
+    jmp(fentry[mainf]);
+    place(halt);
+    emit(opM1, opZ, op(0, 0 - 1));
+    i = 0;
+    while (i < nf) {
+        cfun = i;
+        ntemp = 0;
+        place(fentry[i]);
+        gst(fbody[i]);
+        clr(opRV);
+        place(fexit[i]);
+        clr(op(0, pc + 8));
+        e2(op(0, pc + 5), op(3, fnret[i]));
+        emit(opM1, opZ, op(0, 0));
+        i = i + 1;
+    }
+    genmul();
+    codesize = pc;
+    return 0;
+}
+
+func main() {
+    var c;
+    var i;
+    var v;
+    pw[0] = 1000000000; pw[1] = 100000000; pw[2] = 10000000; pw[3] = 1000000;
+    pw[4] = 100000; pw[5] = 10000; pw[6] = 1000; pw[7] = 100; pw[8] = 10; pw[9] = 1;
+    c = getc();
+    while (c >= 0) {
+        src[slen] = c;
+        slen = slen + 1;
+        c = getc();
+    }
+    pends = 0 - 1;
+    parse();
+    pass = 1;
+    run();
+    database = codesize + ncon;
+    pass = 2;
+    run();
+    stackbase = database + ndata;
+    i = 0;
+    while (i < ncon) {
+        v = cv[i];
+        if (ck[i] == 1) {
+            v = labaddr[cv[i]];
+            if (csg[i] == 0) { v = 0 - v; }
+        }
+        if (ck[i] == 2) { v = database + cv[i]; }
+        if (ck[i] == 3) { v = stackbase; }
+        outword(v);
+        i = i + 1;
+    }
+    putc(10);
+}

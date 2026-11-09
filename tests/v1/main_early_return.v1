@@ -1,0 +1,6 @@
+func main() {
+  putc(65);
+  putc(10);
+  return 3;
+  putc(66);
+}

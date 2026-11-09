@@ -1,0 +1,1 @@
+func main() { var c; c = getc(); while (c != -1) { putc(c); c = getc(); } }

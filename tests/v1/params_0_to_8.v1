@@ -1,0 +1,45 @@
+array pw[10];
+func pd(n) {
+  var m; var i; var d; var s;
+  if (n < 0) { putc(45); m = n; } else { m = 0 - n; }
+  pw[0] = 1;
+  i = 1;
+  while (i < 10) { pw[i] = pw[i - 1] * 10; i = i + 1; }
+  s = 0;
+  i = 9;
+  while (i >= 0) {
+    d = 0;
+    while (m <= 0 - pw[i]) { m = m + pw[i]; d = d + 1; }
+    if (d != 0) { s = 1; }
+    if (i == 0) { s = 1; }
+    if (s) { putc(48 + d); }
+    i = i - 1;
+  }
+  putc(10);
+}
+func p0() { return 7; }
+func p1(a) { return a; }
+func p2(a, b) { return a * 10 + b; }
+func p3(a, b, c) { return (a * 10 + b) * 10 + c; }
+func p4(a, b, c, d) { return ((a * 10 + b) * 10 + c) * 10 + d; }
+func p5(a, b, c, d, e) { return (((a * 10 + b) * 10 + c) * 10 + d) * 10 + e; }
+func p6(a, b, c, d, e, f) { return ((((a * 10 + b) * 10 + c) * 10 + d) * 10 + e) * 10 + f; }
+func p7(a, b, c, d, e, f, g) { return (((((a * 10 + b) * 10 + c) * 10 + d) * 10 + e) * 10 + f) * 10 + g; }
+func p8(a, b, c, d, e, f, g, h) { return ((((((a * 10 + b) * 10 + c) * 10 + d) * 10 + e) * 10 + f) * 10 + g) * 10 + h; }
+func main() {
+  pd(p0());
+  pd(p1(1));
+  pd(p2(1, 2));
+  pd(p3(1, 2, 3));
+  pd(p4(1, 2, 3, 4));
+  pd(p5(1, 2, 3, 4, 5));
+  pd(p6(1, 2, 3, 4, 5, 6));
+  pd(p7(1, 2, 3, 4, 5, 6, 7));
+  pd(p8(1, 2, 3, 4, 5, 6, 7, 8));
+  pd(p8(8, 7, 6, 5, 4, 3, 2, 1));
+  pd(p8(-1, 0, 0, 0, 0, 0, 0, 1));
+  pd(p3(9, 0, 5));
+  pd(p8(0, 0, 0, 0, 0, 0, 0, -1));
+  pd(p2(p1(3), p3(1, 2, 3)));
+  pd(p8(1, 0, 0, 0, 0, 0, 0, 0));
+}

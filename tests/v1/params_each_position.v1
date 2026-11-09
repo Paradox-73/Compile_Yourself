@@ -1,0 +1,12 @@
+func show(a, b, c, d, e, f, g, h) {
+  putc(a); putc(b); putc(c); putc(d); putc(e); putc(f); putc(g); putc(h); putc(10);
+  return a - h;
+}
+func main() {
+  var r;
+  show(65, 66, 67, 68, 69, 70, 71, 72);
+  show(72, 71, 70, 69, 68, 67, 66, 65);
+  r = show(49, 50, 51, 52, 53, 54, 55, 56);
+  putc(48 - r);
+  putc(10);
+}

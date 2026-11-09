@@ -1,0 +1,8 @@
+var cnt;
+func main() {
+  cnt = cnt + 1;
+  putc(64 + cnt);
+  if (cnt < 2) { main(); }
+  putc(96 + cnt);
+  putc(10);
+}

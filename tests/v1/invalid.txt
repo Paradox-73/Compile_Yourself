@@ -1,13 +1,13 @@
 # Programs tools/v1ref.py must reject. Each case starts with "### <text the error must contain>".
-### expected '{'
+### 'else' must be followed by a block
 func main() { if (1) { putc(65); } else if (0) { putc(66); } }
 ### expected '{'
 func main() { if (1) putc(65); }
 ### expected '{'
 func main() { var i; i = 0; while (i < 3) i = i + 1; }
-### expected a statement
+### expected an expression, found ';'
 func main() { for (;;) { } }
-### is not declared
+### after 'break'
 func main() { var i; i = 0; while (1) { break; } }
 ### return needs a value
 func main() { return; }
@@ -66,7 +66,7 @@ func main() { }
 func f() { }
 var f;
 func main() { }
-### is a function name
+### cannot name a local variable
 func f() { }
 func main() { var f; f = 1; }
 ### built in
@@ -104,7 +104,7 @@ func main() { if (!0) { } }
 func main() { if (1 && 1) { } }
 ### expected an expression
 func main() { putc(+1); }
-### expected 'name'
+### expected ';', found ','
 var a, b;
 func main() { }
 ### expected ';'
