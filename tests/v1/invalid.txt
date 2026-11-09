@@ -128,3 +128,11 @@ func f(n) { if (n == 0) { return 0; } return f(n - 1); }
 func main() { putc(f(1000)); }
 ### operation budget exceeded
 func main() { while (1) { } }
+### is already used as a variable name
+func main() { var f; f = 1; }
+func f() { return 0; }
+### unexpected character
+func main() { putc(1); }
+var é;
+### unexpected character
+func main() { putc(²); }

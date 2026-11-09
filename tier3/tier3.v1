@@ -85,6 +85,7 @@ var vsp;
 array svl[4000];
 var nsv;
 array pw[10];
+array p2[31];
 
 func node(k, a, b, c) {
     nn = nn + 1;
@@ -826,6 +827,47 @@ func mulcall(a, b, dst) {
     return 0;
 }
 
+// x * literal as doublings and additions when that is shorter than the routine
+func mulk(x, c, dst) {
+    var v;
+    var ng2;
+    var top;
+    var ones;
+    var i;
+    var t;
+    if (opkind(c) != 2) { return 0; }
+    if (ck[opval(c)] != 0) { return 0; }
+    v = cv[opval(c)];
+    ng2 = 0;
+    if (v < 0) { ng2 = 1; v = 0 - v; }
+    if (v < 0) { return 0; }
+    if (v == 0) { clr(dst); return 1; }
+    top = 30;
+    while (p2[top] > v) { top = top - 1; }
+    ones = 0;
+    t = v;
+    i = top;
+    while (i >= 0) {
+        if (t >= p2[i]) { t = t - p2[i]; ones = ones + 1; }
+        i = i - 1;
+    }
+    if (top + ones > 20) { return 0; }
+    t = temp();
+    mov(t, x);
+    v = v - p2[top];
+    i = top - 1;
+    while (i >= 0) {
+        add(t, t);
+        if (v >= p2[i]) {
+            v = v - p2[i];
+            add(t, x);
+        }
+        i = i - 1;
+    }
+    if (ng2) { negin(dst, t); } else { mov(dst, t); }
+    return 1;
+}
+
 // The expression generator, one function because v1 has no mutual recursion.
 // mode 0: return an operand holding e;  1: put e into dst;  2: jump to lt if e is
 // non-zero else lf;  3: like 0, but copy a variable to a temp when the expression
@@ -1066,7 +1108,11 @@ func gx(mode, e, dst, lt, lf) {
         mov(dst, a);
         e2(dst, b);
     }
-    if (o == 3) { mulcall(a, b, dst); }
+    if (o == 3) {
+        if (mulk(a, b, dst) == 0) {
+            if (mulk(b, a, dst) == 0) { mulcall(a, b, dst); }
+        }
+    }
     ntemp = mark;
     return 0;
 }
@@ -1237,6 +1283,9 @@ func main() {
     var v;
     pw[0] = 1000000000; pw[1] = 100000000; pw[2] = 10000000; pw[3] = 1000000;
     pw[4] = 100000; pw[5] = 10000; pw[6] = 1000; pw[7] = 100; pw[8] = 10; pw[9] = 1;
+    p2[0] = 1;
+    i = 1;
+    while (i < 31) { p2[i] = p2[i - 1] + p2[i - 1]; i = i + 1; }
     c = getc();
     while (c >= 0) {
         src[slen] = c;

@@ -723,8 +723,46 @@ class Gen(object):
             self.mov(dst, a)
             self.emit(dst, b)
         elif op == '*':
-            self.gen_mul_call(a, b, dst)
+            if not self.mul_const(a, b, dst) and not self.mul_const(b, a, dst):
+                self.gen_mul_call(a, b, dst)
         self.free_temps(mark)
+
+    def mul_const(self, x, c, dst):
+        """x * literal as doublings and additions, most significant bit first, when that
+        is shorter than the shared routine. Returns False when it does not apply."""
+        if c[0] != CON or isinstance(self.consts[c[1]], tuple):
+            return False
+        v = self.consts[c[1]]
+        neg = v < 0
+        if neg:
+            v = -v
+        if v >= 1 << 31:
+            return False
+        if v == 0:
+            self.clr(dst)
+            return True
+        top = 30
+        while (1 << top) > v:
+            top -= 1
+        ones = 0
+        for i in range(top + 1):
+            if v & (1 << i):
+                ones += 1
+        if top + ones > 20:
+            return False
+        t = self.temp()
+        self.mov(t, x)
+        i = top - 1
+        while i >= 0:
+            self.add(t, t)
+            if v & (1 << i):
+                self.add(t, x)
+            i -= 1
+        if neg:
+            self.neg_into(dst, t)
+        else:
+            self.mov(dst, t)
+        return True
 
     def gen_mul_call(self, a, b, dst):
         self.mov(self.MA, a)

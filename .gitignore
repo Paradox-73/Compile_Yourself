@@ -5,3 +5,4 @@ tools/vm.exe
 __pycache__/
 *.pyc
 tests/*.txt
+tests/c1.txt

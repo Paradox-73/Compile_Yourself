@@ -20,6 +20,8 @@ DEFAULT_MAX_OPS = 10_000_000
 KEYWORDS = {"var", "array", "func", "if", "else", "while", "return"}
 BUILTINS = {"getc": 0, "putc": 1}
 B = 0x80000000
+DIGITS = "0123456789"
+NAME_START = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
 M = 0xFFFFFFFF
 
 
@@ -56,12 +58,12 @@ def tokenize(text):
             line += s.count("\n")
         elif s.startswith("//"):
             pass
-        elif c.isalpha() or c == "_":
+        elif c in NAME_START:
             if len(s) > MAX_NAME:
                 raise CompileError(line, f"name longer than {MAX_NAME} characters: {s}")
             toks.append((s if s in KEYWORDS else "name", s, line))
-        elif c.isdigit():
-            if not s.isdigit():
+        elif c in DIGITS:
+            if not all(ch in DIGITS for ch in s):
                 raise CompileError(line, f"bad number: {s}")
             if len(s) > 1 and c == "0":
                 raise CompileError(line, f"number with a leading zero: {s}")
@@ -105,6 +107,7 @@ class Compiler:
         self.nfuncs = 0
         self.fn = None
         self.scopes = []
+        self.local_names = set()   # every param and local, so a later function cannot reuse one
 
     # token helpers
     def peek(self, k=0):
@@ -122,7 +125,7 @@ class Compiler:
         if name in BUILTINS:
             raise CompileError(line, f"'{name}' is built in and cannot be redefined")
         g = self.globals.get(name)
-        if g and (g[0] == "func" or not self.scopes):
+        if g:
             raise CompileError(line, f"'{name}' already declared at top level")
 
     # program
@@ -165,6 +168,8 @@ class Compiler:
         line = self.take("func")[2]
         name = self.take("name")[1]
         self.check_new_name(name, line)
+        if name in self.local_names:
+            raise CompileError(line, f"'{name}' is already used as a variable name")
         self.nfuncs += 1
         if self.nfuncs > MAX_FUNCS:
             raise CompileError(line, f"more than {MAX_FUNCS} functions")
@@ -197,6 +202,7 @@ class Compiler:
             raise CompileError(line, f"'{name}' is a function name")
         if name in existing:
             raise CompileError(line, f"parameter '{name}' declared twice")
+        self.local_names.add(name)
         return name
 
     # statements
@@ -236,6 +242,7 @@ class Compiler:
                 raise CompileError(line, f"'{name}' cannot name a local variable")
             if name in self.scopes[-1]:
                 raise CompileError(line, f"'{name}' declared twice in the same block")
+            self.local_names.add(name)
             slot = self.fn.nslots
             self.fn.nslots += 1
             self.scopes[-1][name] = slot
