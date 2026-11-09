@@ -1,0 +1,1 @@
+func main() { var i; i = 0; while (i < 3) { putc(65 + i); i = i + 1; } putc(10); }

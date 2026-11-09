@@ -1,0 +1,6 @@
+tools/vm
+tools/vm.exe
+*.exe
+__pycache__/
+*.pyc
+tests/*.txt

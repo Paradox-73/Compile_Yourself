@@ -1,0 +1,1 @@
+func main() { putc(6 * 11); putc(10); }

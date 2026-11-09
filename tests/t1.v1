@@ -1,0 +1,2 @@
+func f(x) { return x + 1; }
+func main() { putc(f(64)); putc(10); }

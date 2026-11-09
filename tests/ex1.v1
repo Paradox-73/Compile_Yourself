@@ -1,0 +1,5 @@
+func fact(n) {                                     // prints "6"
+       if (n < 2) { return 1; }
+       return n * fact(n - 1);
+}
+func main() { putc(48 + fact(3)); putc(10); }
