@@ -44,7 +44,7 @@ This repository is the entry of team Claude laggye for problem COMP01, "Compile 
 | Tier | What it is | State |
 |---|---|---|
 | 1 | Four machine programs: `echo`, `reverse`, `bigmul`, `hanoi` | done: hanoi n=8 in 88k steps, two 40-digit numbers in 0.69M steps |
-| 2 | `tier2/v1c.py`: v1 to machine code, in Python | compiles the full language; both examples from the brief run correctly |
+| 2 | `tier2/v1c.py`: v1 to machine code, in Python | 80 hand-written programs and 1,300+ random ones match the reference interpreter byte for byte; heaviest test 33M of the 100M steps |
 | 3 | `tier3/tier3.v1`: the same compiler written in v1 | done: compiles itself in 132M steps (limit 10^10); C1, C2 and C3 are byte-identical |
 
 This table is updated as each tier lands.
@@ -216,6 +216,21 @@ v1 has no mutual recursion, so every recursive part of the compiler is a single 
 - **Reference interpreter.** `tools/v1ref.py` runs v1 directly, following the brief word for word.
 - **Corpus.** Hand-written programs for every operator, precedence level, wrap-around edge, comparison overflow case, recursion 1,000 deep, 8 parameters and shadowing.
 - **Random programs.** A generator writes valid v1 programs; each is compiled, run on the machine and compared byte for byte with the reference interpreter.
+- **Invalid programs.** 56 programs that break a rule of the brief, each with the error it must give.
+
+| Check | Result |
+|---|---|
+| `v1c.py` on the corpus and random programs | 80 corpus + 1,300 random: all match the reference interpreter |
+| Self-compiled compiler (C1) on the same | 80 corpus + 1,300 random: all match |
+| C1's output vs `v1c.py`'s output | byte-identical on every corpus program |
+| Bootstrap on the organisers' `VM_tier3` (Ubuntu 24.04) | C1 = C2 = C3, 132M steps |
+| 59.8 KB input to C1 | 214M steps (limit 10^10), output identical to `v1c.py` |
+| Tier 1 programs on the organisers' `VM_tier1and2` | all correct |
+
+```
+python3 tools/run_tests.py --compiler "python3 tier2/v1c.py" --gen 300
+python3 tools/run_tests.py --compiler "/abs/path/vm /abs/path/C1.txt 10000000000" --gen 300
+```
 
 ## Language choices
 
@@ -226,7 +241,7 @@ The brief leaves a few points open. Where it does, we chose the C-like reading a
 
 ## Limitations
 
-- Every multiplication costs about 400 steps; multiplying by a literal will be turned into additions where that is cheaper.
+- Multiplying two variables costs up to about 350 steps (fewer when the multiplier is small); a literal factor becomes a dozen additions.
 - A function calling itself saves its whole frame, not only the cells still needed after the call.
 
 ## Team
