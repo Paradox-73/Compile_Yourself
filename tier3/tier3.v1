@@ -13,11 +13,11 @@ var tl;
 var tp;
 
 // tree: kind, three fields, next in list
-array nk[40000];
-array n1[40000];
-array n2[40000];
-array n3[40000];
-array nx[40000];
+array nk[50000];
+array n1[50000];
+array n2[50000];
+array n3[50000];
+array nx[50000];
 var nn;
 
 array gs[3000];
@@ -63,7 +63,7 @@ array fentry[202];
 array fexit[202];
 array ftcnt[202];
 array ftbase[202];
-array ftoff[26000];
+array ftoff[52000];
 var cfun;
 var ntemp;
 var opZ;
@@ -1231,7 +1231,7 @@ func run() {
         data(fnl[i]);
         ftcnt[i] = 0;
         ftbase[i] = j;
-        j = j + 128;
+        j = j + 256;
         fentry[i] = newlab();
         fexit[i] = newlab();
         i = i + 1;

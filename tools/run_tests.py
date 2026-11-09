@@ -97,7 +97,7 @@ def run_case(case, args, work):
 
 def check_invalid(pattern):
     """Each case in invalid.txt must be rejected by v1ref with a message containing its header text."""
-    text = (CORPUS / "invalid.txt").read_text()
+    text = (CORPUS / "invalid.txt").read_text(encoding="utf-8")
     failures, count = [], 0
     for chunk in text.split("\n### ")[1:]:
         want, _, src = chunk.partition("\n")
