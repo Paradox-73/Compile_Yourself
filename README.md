@@ -230,6 +230,7 @@ v1 has no mutual recursion, so every recursive part of the compiler is a single 
 ```
 python3 tools/run_tests.py --compiler "python3 tier2/v1c.py" --gen 300
 python3 tools/run_tests.py --compiler "/abs/path/vm /abs/path/C1.txt 10000000000" --gen 300
+python3 tools/stress.py --c1 C1.txt     # worst-case sizes: both compilers, same output
 ```
 
 ## Language choices
