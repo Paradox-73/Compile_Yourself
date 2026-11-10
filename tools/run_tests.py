@@ -6,7 +6,8 @@ usage: python tools/run_tests.py --compiler "python tier2/v1c.py" [--gen N] [--s
 Each program is compiled (stdin -> stdout, at most 60 s), run on the VM with its input
 (at most LIMIT steps), and its output is compared byte for byte with the expected output.
 Corpus programs (tests/v1/*.v1) also check that v1ref still reproduces their .out file, and
-tests/v1/invalid.txt checks that v1ref rejects each program in it.
+tests/v1/invalid.txt checks that v1ref rejects each program in it. Programs in tests/lenient/
+use readings the brief leaves open, which v1ref rejects, so only their .out file is checked.
 Exit code 0 only when everything passes. Files of failing cases are kept and their folder printed.
 """
 import argparse
@@ -23,6 +24,7 @@ from pathlib import Path
 TOOLS = Path(__file__).resolve().parent
 ROOT = TOOLS.parent
 CORPUS = ROOT / "tests" / "v1"
+LENIENT = ROOT / "tests" / "lenient"
 sys.path.insert(0, str(TOOLS))
 import v1gen  # noqa: E402
 import v1ref  # noqa: E402
@@ -31,13 +33,14 @@ COMPILE_TIMEOUT = 60
 
 
 def corpus_cases(pattern):
-    for src in sorted(CORPUS.glob("*.v1")):
+    for src in sorted(CORPUS.glob("*.v1")) + sorted(LENIENT.glob("*.v1")):
         if pattern and pattern not in src.stem:
             continue
         inp = src.with_suffix(".in")
         out = src.with_suffix(".out")
         yield {"name": src.stem, "src": src.read_bytes(), "input": inp.read_bytes() if inp.exists() else b"",
-               "expected": out.read_bytes() if out.exists() else None, "corpus": True}
+               "expected": out.read_bytes() if out.exists() else None, "corpus": True,
+               "lenient": src.parent == LENIENT}
 
 
 def run_case(case, args, work):
@@ -53,13 +56,13 @@ def run_case(case, args, work):
             return dict(res, status="GEN-ERROR", detail=f"generator made a program v1ref rejects: {e}")
         (d / "prog.v1").write_bytes(case["src"])
         (d / "input").write_bytes(case["input"])
-    else:
+    elif case["expected"] is None:
+        return dict(res, status="NO-OUT", detail="missing .out file")
+    elif not case["lenient"]:
         ref = subprocess.run([sys.executable, str(TOOLS / "v1ref.py"), str(d / "prog.v1")],
                              input=case["input"], capture_output=True)
         if ref.returncode:
             return dict(res, status="REF-ERROR", detail=ref.stderr.decode(errors="replace").strip())
-        if case["expected"] is None:
-            return dict(res, status="NO-OUT", detail="missing .out file")
         if ref.stdout != case["expected"]:
             (d / "v1ref.out").write_bytes(ref.stdout)
             return dict(res, status="STALE-OUT", detail="v1ref output differs from the .out file")
