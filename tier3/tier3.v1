@@ -47,7 +47,8 @@ var pendl;
 var pass;
 var pc;
 var nlab;
-array labaddr[80000];
+// up to 5 labels per 2 bytes (x = a < b < c ...: 3 for the value, 2 for the test)
+array labaddr[150010];
 array ck[30000];
 array cv[30000];
 array csg[30000];
@@ -62,8 +63,8 @@ array fnret[202];
 array fentry[202];
 array fexit[202];
 array ftcnt[202];
-array ftbase[202];
-array ftoff[52000];
+// temps of the function being generated (only one is generated at a time)
+array ftoff[60000];
 var cfun;
 var ntemp;
 var opZ;
@@ -80,10 +81,15 @@ var opMN;
 var mulent;
 var nwords;
 var linew;
-array vstk[4000];
+// arguments waiting for a nested call: up to 7 per level, and the stack runs out near 2,100 levels
+array vstk[15000];
 var vsp;
-array svl[4000];
+// a self-call saves nsv cells with 57 words of code each, so nsv > 18,400 cannot fit in memory
+array svl[18400];
 var nsv;
+// left operands still to finish in gx: one per binary operator, so at most 30,000
+array spn[30000];
+var ssp;
 array pw[10];
 array p2[31];
 
@@ -728,10 +734,10 @@ func cell(kind, i) {
 func temp() {
     var t;
     if (ntemp == ftcnt[cfun]) {
-        ftoff[ftbase[cfun] + ntemp] = op(3, data(1));
+        ftoff[ntemp] = op(3, data(1));
         ftcnt[cfun] = ftcnt[cfun] + 1;
     }
-    t = ftoff[ftbase[cfun] + ntemp];
+    t = ftoff[ntemp];
     ntemp = ntemp + 1;
     return t;
 }
@@ -740,7 +746,7 @@ func istemp(x) {
     var i;
     i = 0;
     while (i < ftcnt[cfun]) {
-        if (ftoff[ftbase[cfun] + i] == x) { return 1; }
+        if (ftoff[i] == x) { return 1; }
         i = i + 1;
     }
     return 0;
@@ -926,6 +932,43 @@ func mulk(x, c, dst) {
     return 1;
 }
 
+// dst = a + b, a - b or a * b (o 1, 2, 3)
+func gbin(o, dst, a, b) {
+    var t;
+    if (o == 1) {
+        if (dst == a) {
+            add(dst, b);
+        } else {
+            if (dst == b) {
+                add(dst, a);
+            } else {
+                clr(dst);
+                e2(opZ, a);
+                e2(opZ, b);
+                e2(dst, opZ);
+                e2(opZ, opZ);
+            }
+        }
+    }
+    if (o == 2) {
+        if (dst == b) {
+            if (dst != a) {
+                t = temp();
+                mov(t, b);
+                b = t;
+            }
+        }
+        mov(dst, a);
+        e2(dst, b);
+    }
+    if (o == 3) {
+        if (mulk(a, b, dst) == 0) {
+            if (mulk(b, a, dst) == 0) { mulcall(a, b, dst); }
+        }
+    }
+    return 0;
+}
+
 // The expression generator, one function because v1 has no mutual recursion.
 // mode 0: return an operand holding e;  1: put e into dst;  2: jump to lt if e is
 // non-zero else lf;  3: like 0, but copy a variable to a temp when the expression
@@ -948,16 +991,24 @@ func gx(mode, e, dst, lt, lf) {
     var keep;
     k = nk[e];
     if (mode == 4) {
-        if (k == 4) { return 1; }
-        if (k == 7) { return 1; }
-        if (k == 8) { return 1; }
-        if (k == 3) { return gx(4, n2[e], 0, 0, 0); }
-        if (k == 5) { return gx(4, n1[e], 0, 0, 0); }
-        if (k == 6) {
-            if (gx(4, n2[e], 0, 0, 0)) { return 1; }
-            return gx(4, n3[e], 0, 0, 0);
+        // a loop down the left operands, so a long flat sum does not recurse
+        while (1) {
+            k = nk[e];
+            if (k == 4) { return 1; }
+            if (k == 7) { return 1; }
+            if (k == 8) { return 1; }
+            if (k == 3) {
+                e = n2[e];
+            } else {
+                if (k == 5) {
+                    e = n1[e];
+                } else {
+                    if (k != 6) { return 0; }
+                    if (gx(4, n3[e], 0, 0, 0)) { return 1; }
+                    e = n2[e];
+                }
+            }
         }
-        return 0;
     }
     if (mode == 3) {
         v = gx(0, e, 0, 0, 0);
@@ -1043,7 +1094,7 @@ func gx(mode, e, dst, lt, lf) {
             }
             i = 0;
             while (i < ntemp) {
-                t = ftoff[ftbase[cfun] + i];
+                t = ftoff[i];
                 keep = 1;
                 j = base;
                 while (j < vsp) {
@@ -1120,59 +1171,56 @@ func gx(mode, e, dst, lt, lf) {
         mov(dst, opRV);
         return 0;
     }
-    // binary operator
-    o = n1[e];
+    // Binary operator. Parsing is left-associative, so a flat sum is a chain of left
+    // operands as long as the sum. Recursing down that chain costs three saved frames
+    // per term, so walk it with a loop instead: going down, each level takes the labels
+    // (comparisons) and the temp for its left operand, in the order the recursion would;
+    // coming back up, level i has mark + i as its temp mark, ftoff[mark + i] as its left
+    // operand, and ftoff[mark + i - 1] (or dst at the top) as its target.
     mark = ntemp;
-    if (o >= 4) {
-        lt = newlab();
-        lf = newlab();
-        lend = newlab();
-        gx(2, e, 0, lt, lf);
-        place(lt);
-        clr(dst);
-        e2(dst, opM1);
-        jmp(lend);
-        place(lf);
-        clr(dst);
-        place(lend);
-        ntemp = mark;
-        return 0;
+    n = dst;
+    base = ssp;
+    x = e;
+    while (nk[n2[x]] == 6) {
+        spn[ssp] = x;
+        ssp = ssp + 1;
+        if (n1[x] >= 4) { newlab(); newlab(); newlab(); }
+        temp();
+        x = n2[x];
     }
-    a = gx(3, n2[e], n3[e], 0, 0);
-    b = gx(0, n3[e], 0, 0, 0);
-    if (o == 1) {
-        if (dst == a) {
-            add(dst, b);
+    if (n1[x] >= 4) { newlab(); newlab(); newlab(); }
+    j = nlab;
+    i = ssp - base;
+    a = gx(3, n2[x], n3[x], 0, 0);
+    while (1) {
+        if (i) { dst = ftoff[mark + i - 1]; } else { dst = n; }
+        o = n1[x];
+        b = gx(0, n3[x], 0, 0, 0);
+        if (o >= 4) {
+            if (o == 4) { less(a, b, j - 2, j - 1); }
+            if (o == 6) { less(b, a, j - 2, j - 1); }
+            if (o == 5) { less(b, a, j - 1, j - 2); }
+            if (o == 7) { less(a, b, j - 1, j - 2); }
+            if (o == 8) { equal(a, b, j - 2, j - 1); }
+            if (o == 9) { equal(a, b, j - 1, j - 2); }
+            place(j - 2);
+            clr(dst);
+            e2(dst, opM1);
+            jmp(j);
+            place(j - 1);
+            clr(dst);
+            place(j);
+            j = j - 3;
         } else {
-            if (dst == b) {
-                add(dst, a);
-            } else {
-                clr(dst);
-                e2(opZ, a);
-                e2(opZ, b);
-                e2(dst, opZ);
-                e2(opZ, opZ);
-            }
+            gbin(o, dst, a, b);
         }
+        ntemp = mark + i;
+        if (i == 0) { return 0; }
+        i = i - 1;
+        ssp = ssp - 1;
+        x = spn[ssp];
+        a = ftoff[mark + i];
     }
-    if (o == 2) {
-        if (dst == b) {
-            if (dst != a) {
-                t = temp();
-                mov(t, b);
-                b = t;
-            }
-        }
-        mov(dst, a);
-        e2(dst, b);
-    }
-    if (o == 3) {
-        if (mulk(a, b, dst) == 0) {
-            if (mulk(b, a, dst) == 0) { mulcall(a, b, dst); }
-        }
-    }
-    ntemp = mark;
-    return 0;
 }
 
 func gst(s) {
@@ -1270,7 +1318,6 @@ func genmul() {
 
 func run() {
     var i;
-    var j;
     var halt;
     var mainf;
     pc = 0;
@@ -1293,14 +1340,11 @@ func run() {
         abase[i] = data(arsz[i]);
         i = i + 1;
     }
-    j = 0;
     i = 0;
     while (i < nf) {
         fnret[i] = data(1);
         data(fnl[i]);
         ftcnt[i] = 0;
-        ftbase[i] = j;
-        j = j + 256;
         fentry[i] = newlab();
         fexit[i] = newlab();
         i = i + 1;
