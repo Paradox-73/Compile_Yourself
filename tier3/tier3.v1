@@ -52,6 +52,9 @@ array labaddr[150010];
 array ck[30000];
 array cv[30000];
 array csg[30000];
+// hash buckets of the constant pool: 1 + newest constant in the bucket, 0 if empty
+array chead[4096];
+array cnext[30000];
 var ncon;
 var ndata;
 var codesize;
@@ -598,13 +601,31 @@ func data(n) {
     return d;
 }
 
-// constant pool: kind 0 value, 1 label (with sign), 2 data address, 3 stack base
+// constant pool: kind 0 value, 1 label (with sign), 2 data address, 3 stack base.
+// Every label constant is for a fresh label, so only the other kinds can repeat; those
+// are found through a hash table instead of a scan (12,000 distinct literals fit in 60 KB).
 func conk(kind, v, sg) {
     var i;
-    i = 0;
-    while (i < ncon) {
-        if (ck[i] == kind) { if (cv[i] == v) { if (csg[i] == sg) { return op(2, i); } } }
-        i = i + 1;
+    var h;
+    var r;
+    if (kind != 1) {
+        // bucket: the top 12 bits of v * 1640531527
+        h = v * 1640531527;
+        r = 0;
+        i = 0;
+        while (i < 12) {
+            r = r + r;
+            if (h < 0) { r = r + 1; }
+            h = h + h;
+            i = i + 1;
+        }
+        i = chead[r];
+        while (i) {
+            if (ck[i - 1] == kind) { if (cv[i - 1] == v) { if (csg[i - 1] == sg) { return op(2, i - 1); } } }
+            i = cnext[i - 1];
+        }
+        cnext[ncon] = chead[r];
+        chead[r] = ncon + 1;
     }
     ck[ncon] = kind;
     cv[ncon] = v;
@@ -1323,6 +1344,8 @@ func run() {
     pc = 0;
     nlab = 0;
     ncon = 0;
+    i = 0;
+    while (i < 4096) { chead[i] = 0; i = i + 1; }
     ndata = 0;
     opZ = op(3, data(1));
     opT1 = op(3, data(1));
