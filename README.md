@@ -44,10 +44,8 @@ This repository is the entry of team Claude laggye for problem COMP01, "Compile 
 | Tier | What it is | State |
 |---|---|---|
 | 1 | Four machine programs: `echo`, `reverse`, `bigmul`, `hanoi` | done: hanoi n=8 in 88k steps, two 40-digit numbers in 0.69M steps |
-| 2 | `tier2/v1c.py`: v1 to machine code, in Python | 80 hand-written programs and 1,300+ random ones match the reference interpreter byte for byte; heaviest test 33M of the 100M steps |
-| 3 | `tier3/tier3.v1`: the same compiler written in v1 | done: compiles itself in 151M steps (limit 10^10); C1, C2 and C3 are byte-identical |
-
-This table is updated as each tier lands.
+| 2 | `tier2/v1c.py`: v1 to machine code, in Python | 81 hand-written programs and 1,300+ random ones match the reference interpreter byte for byte; heaviest test 33M of the 100M steps |
+| 3 | `tier3/tier3.v1`: the same compiler written in v1 | done: compiles itself in 126M steps (limit 10^10); C1, C2 and C3 are byte-identical |
 
 ## Quick start
 
@@ -204,7 +202,7 @@ The four programs are written in v1 (`tier1/src/`) and compiled with `v1c.py`. T
 
 ```
 python3 tier2/v1c.py < tier3/tier3.v1 > C1.txt       # Step 1
-tools/vm C1.txt 10000000000 < tier3/tier3.v1 > C2.txt  # Step 3: about 151M steps
+tools/vm C1.txt 10000000000 < tier3/tier3.v1 > C2.txt  # Step 3: about 126M steps
 tools/vm C2.txt 10000000000 < tier3/tier3.v1 > C3.txt
 cmp C1.txt C2.txt && cmp C2.txt C3.txt                 # all three identical
 ```
@@ -220,11 +218,12 @@ v1 has no mutual recursion, so every recursive part of the compiler is a single 
 
 | Check | Result |
 |---|---|
-| `v1c.py` on the corpus and random programs | 80 corpus + 1,300 random: all match the reference interpreter |
-| Self-compiled compiler (C1) on the same | 80 corpus + 1,300 random: all match |
+| `v1c.py` on the corpus and random programs | 81 corpus + 1,300 random: all match the reference interpreter |
+| Self-compiled compiler (C1) on the same | 81 corpus + 1,300 random: all match |
 | C1's output vs `v1c.py`'s output | byte-identical on every corpus program |
-| Bootstrap on the organisers' `VM_tier3` (Ubuntu 24.04) | C1 = C2 = C3, 150,629,572 steps |
-| 59.8 KB input to C1 | 214M steps (limit 10^10), output identical to `v1c.py` |
+| Bootstrap on the organisers' `VM_tier3` (Ubuntu 24.04) | C1 = C2 = C3, 126,286,471 steps |
+| 59.8 KB input to C1 | 197M steps (limit 10^10), output identical to `v1c.py` |
+| Worst-case flat expressions up to 60 KB to C1 (long sums, comparison chains, products, 10,000 distinct literals, 3,000 globals) | at most 3.2B steps (limit 10^10), output identical to `v1c.py` |
 | Tier 1 programs on the organisers' `VM_tier1and2` | all correct |
 
 ```
@@ -235,7 +234,7 @@ python3 tools/stress.py --c1 C1.txt     # worst-case sizes: both compilers, same
 
 ## Language choices
 
-The brief leaves a few points open. Where it does, we chose the C-like reading and asked the organisers:
+The brief leaves a few points open. Where it does, we chose the C-like reading:
 
 - a `var` declared inside a block is visible until the end of that block, and an inner block may declare the same name again;
 - in `a[i] = e;` the index is evaluated before `e`.
@@ -245,7 +244,8 @@ The brief leaves a few points open. Where it does, we chose the C-like reading a
 - Multiplying two variables costs up to about 350 steps (fewer when the multiplier is small); a literal factor becomes a dozen additions.
 - A function calling itself saves its whole frame, not only the cells still needed after the call.
 - The brief leaves two scope questions open. Both compilers accept a local used after the block that declared it (a live local or a global of that name wins first), and a name declared twice in one block (the second declaration hides the first). `tests/lenient/` covers both.
-- `tier3.v1` keeps its tables in fixed arrays: 60,000 tree nodes, 8,000 globals, 6,000 arrays, 256 temporaries per function. It generates code recursively, so one flat expression of more than about 4,000 operators runs out of stack (2,000 nested `if`s and 1,000 nested parentheses are fine). `v1c.py` has no such limits.
+- `tier3.v1` keeps its tables in fixed arrays sized for a 60,000-byte input: 60,000 tree nodes, 8,000 globals, 6,000 arrays, 30,000 constants, 150,000 labels. It walks long flat expressions with a loop, so one sum or comparison chain as long as the file compiles (29,958 terms in 0.98B steps), but nesting still recurses into the stack left above those tables: about 3,400 nested parentheses, 3,100 unary minuses in a row or 2,000 nested calls with 8 arguments each. Nested `if`s fit at any depth a 60 KB file allows. `v1c.py` has no such limits.
+- Each self-call site saves and restores the whole frame with straight-line code, about 57 words per saved cell. In a function with 8 parameters and 40 locals that is about 3,200 words per self-call site, so 200 such sites take 636,085 of the 1,048,576 words.
 
 ## Team
 

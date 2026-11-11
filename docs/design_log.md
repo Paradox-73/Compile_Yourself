@@ -30,6 +30,7 @@ One page: what we built, in what order, what failed, and what we kept.
 | One test took 45M of the 100M steps | `i * 7` and `s * 31` went through the 32-round multiply routine (about 350 steps each) | A literal factor becomes doublings and additions (about 12 instructions); now 6.6M steps |
 | `v1c.py` crashed on one 29,000-term sum | Python's recursion limit | The compiler runs in a thread with a 255 MB stack |
 | Tier 3 ran out of stack on a 5,000-term sum after its tables grew | The tables took memory from the stack | Grew only the tables a 60 KB file can fill; measured the limit (about 4,000 terms) |
+| Tier 3 still crashed on a 9,900-term sum (`IN used as first operand`) | The real cause: code generation recursed down the sum's chain of left operands, three saved frames (about 65 words) per term, until the stack reached the IN/OUT cells at the top of memory | `gx` walks that chain with a loop. A 29,900-term sum (60 KB) now compiles in 0.98B steps. Constants are found by hashing and temps by one comparison, so long expressions no longer cost quadratic steps |
 
 ## 3. Things we chose not to do
 
@@ -42,10 +43,10 @@ One page: what we built, in what order, what failed, and what we kept.
 ## 4. How we checked it
 
 - A reference interpreter (`tools/v1ref.py`) written from the brief alone.
-- 80 hand-written programs and thousands of random ones: compiled, run on the machine,
+- 81 hand-written programs and thousands of random ones: compiled, run on the machine,
   compared byte for byte with the reference interpreter. 56 invalid programs must be
   rejected by the reference interpreter.
 - The self-compiled compiler on the same tests, and its output compared with `v1c.py`'s.
-- A 59.8 KB program (the brief allows 60 KB) through Tier 3: 214M steps, identical output.
+- A 59.8 KB program (the brief allows 60 KB) through Tier 3: 197M steps, identical output.
 - Generated worst cases (6,500 globals, 4,500 arrays, deep nesting) through both compilers.
 - Everything again on the organisers' own `VM_tier1and2` and `VM_tier3` in Ubuntu 24.04.
