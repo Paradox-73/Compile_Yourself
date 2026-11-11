@@ -32,6 +32,11 @@ def long_sum(n):
     return "func main() { var x; x = 0" + "+1" * n + f"; if (x == {n}) {{ {CHECK} }} }}\n"
 
 
+def long_compare(n):
+    # 1 < 1 is 0, 0 < 1 is 1: the value flips with each comparison
+    return "func main() { var x; x = 1" + "<1" * n + f"; if (x == {1 - n % 2}) {{ {CHECK} }} }}\n"
+
+
 def nested_ifs(n):
     return ("func main() { var x; x = 0; " + "if (1) { x = x + 1; " * n + "}" * n
             + f" if (x == {n}) {{ {CHECK} }} }}\n")
@@ -43,7 +48,8 @@ def nested_parens(n):
 
 
 CASES = [("globals_5000", many_globals(5000)), ("arrays_3500", many_arrays(3500)),
-         ("sum_4000", long_sum(4000)), ("ifs_2000", nested_ifs(2000)), ("parens_1000", nested_parens(1000))]
+         ("sum_29900", long_sum(29900)), ("compare_10000", long_compare(10000)),
+         ("ifs_2000", nested_ifs(2000)), ("parens_1000", nested_parens(1000))]
 
 
 def main():
