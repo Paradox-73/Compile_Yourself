@@ -219,31 +219,38 @@ func expect(c) {
     return 0;
 }
 
+// The find functions check the length and the first character before calling same:
+// a flat sum of one name declared among thousands calls them for every term.
 func findglobal(s, l) {
     var i;
+    var c;
     i = 0;
+    c = src[s];
     while (i < ng) {
-        if (same(gs[i], gl[i], s, l)) { return i; }
+        if (gl[i] == l) { if (src[gs[i]] == c) { if (same(gs[i], l, s, l)) { return i; } } }
         i = i + 1;
     }
     return 0 - 1;
 }
 
-// -1 when the name is not a local; otherwise its local index.
+// A local's index (0 or more), or -2 - g for global g, or -1 when there is neither.
 // A local whose block has closed (scd = -1) is used only when no live local or global matches.
 func findlocal(s, l) {
     var i;
+    var c;
+    c = src[s];
     i = nsc - 1;
     while (i >= 0) {
         if (scd[i] >= 0) {
-            if (same(scs[i], scl[i], s, l)) { return sci[i]; }
+            if (scl[i] == l) { if (src[scs[i]] == c) { if (same(scs[i], l, s, l)) { return sci[i]; } } }
         }
         i = i - 1;
     }
-    if (findglobal(s, l) >= 0) { return 0 - 1; }
+    i = findglobal(s, l);
+    if (i >= 0) { return 0 - 2 - i; }
     i = nsc - 1;
     while (i >= 0) {
-        if (same(scs[i], scl[i], s, l)) { return sci[i]; }
+        if (scl[i] == l) { if (src[scs[i]] == c) { if (same(scs[i], l, s, l)) { return sci[i]; } } }
         i = i - 1;
     }
     return 0 - 1;
@@ -251,9 +258,11 @@ func findlocal(s, l) {
 
 func findarray(s, l) {
     var i;
+    var c;
     i = 0;
+    c = src[s];
     while (i < na) {
-        if (same(ars[i], arl[i], s, l)) { return i; }
+        if (arl[i] == l) { if (src[ars[i]] == c) { if (same(ars[i], l, s, l)) { return i; } } }
         i = i + 1;
     }
     return 0 - 1;
@@ -366,7 +375,7 @@ func pexp(lv) {
     }
     k = findlocal(s, n);
     if (k >= 0) { return node(2, 1, k, 0); }
-    return node(2, 0, findglobal(s, n), 0);
+    return node(2, 0, 0 - 2 - k, 0);
 }
 
 // statement kinds: 10 set (n1 0/1 global/local, n2 index, n3 expr), 11 array set
@@ -454,7 +463,7 @@ func pstmts() {
                                 if (k >= 0) {
                                     st = node(10, 1, k, b);
                                 } else {
-                                    st = node(10, 0, findglobal(s, l), b);
+                                    st = node(10, 0, 0 - 2 - k, b);
                                 }
                             }
                         }
