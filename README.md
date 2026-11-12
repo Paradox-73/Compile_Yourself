@@ -16,7 +16,7 @@
 
 **[Repository](https://github.com/Paradox-73/Compile_Yourself)** &nbsp;|&nbsp; [Compiler](tier2/v1c.py) &nbsp;|&nbsp; [Build and run](tier2/BUILD.md) &nbsp;|&nbsp; [Design log](docs/design_log.md)
 
-**Demo video:** `<YOUTUBE_LINK>`
+**Demo video:** [youtu.be/6LNNXJJdJPQ](https://youtu.be/6LNNXJJdJPQ)
 
 </div>
 
