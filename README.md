@@ -100,8 +100,8 @@ Team Claude laggye's entry for problem COMP01, "Compile Yourself", in the Compil
 ## Pre-compiled programs and executables
 
 - **Tier 1 programs:** [`tier1/*.txt`](tier1/) are finished machine programs. Run them directly, for example `printf '3\n' | tools/vm tier1/hanoi.txt`.
-- **C1, the compiled Tier 3 compiler:** not committed, because one command builds it: `python3 tier2/v1c.py < tier3/tier3.v1 > C1.txt` (64,518 words).
-- **Local VM:** `tools/vm.exe` and `tools/vm` are the same Windows x86-64 build of `tools/vm.c`. On Linux or macOS, rebuild `tools/vm` with the `gcc` line in [Quick start](#quick-start).
+- **C1, the compiled Tier 3 compiler:** [`tier3/C1.txt`](tier3/C1.txt) (64,518 words), built by `python3 tier2/v1c.py < tier3/tier3.v1 > C1.txt` and identical to what it produces when it compiles itself. Run it with `tools/vm tier3/C1.txt 10000000000 < program.v1 > program.txt`.
+- **Local VM:** not committed as a binary. Build `tools/vm` from `tools/vm.c` with the `gcc` line in [Quick start](#quick-start) (Linux, macOS, or Windows with MinGW); it takes a second.
 - **The official VM** (`vm`, `VM_tier1and2`, `VM_tier3`) belongs to the organisers and is not in this repository.
 - **The compiler** `tier2/v1c.py` is a Python script, so it has no build step.
 
